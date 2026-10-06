@@ -28,6 +28,20 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 
 Beim ersten Start lädt es Electron (etwa 100 MB, nur einmal).
 
+**Symbol auf dem Desktop** (einmal):
+
+```powershell
+cd C:\Users\Tim\Documents\deine-roehre
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\make-shortcut.ps1
+```
+
+Danach liegt „Deine Röhre“ auf dem Desktop und im Startmenü; ein Doppelklick
+startet die App ohne PowerShell-Fenster. Für die Taskleiste: Rechtsklick auf
+das Symbol, „Weitere Optionen anzeigen“, „An Taskleiste anheften“.
+
 ## Was es kann
 
 Vier Fenster im Menü:

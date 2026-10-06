@@ -112,6 +112,7 @@ async function createWindow(url) {
   const bounds = onScreen(saved.bounds) ? saved.bounds : { width: 1000, height: 640 };
   win = new BrowserWindow({
     ...bounds, minWidth: 300, minHeight: 200, show: false, title: 'Deine Röhre', autoHideMenuBar: true,
+    icon: path.join(HERE, process.platform === 'win32' ? 'icon.ico' : 'icon.png'),   // the Fraktur "DR" in the taskbar
     backgroundColor: '#040303',
     webPreferences: { preload: path.join(HERE, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false },
   });
