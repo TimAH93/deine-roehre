@@ -125,7 +125,7 @@ deinem Drive; jedes Gerät schaut beim Öffnen und alle 2 Minuten nach. Es gilt
 die zuletzt geänderte Fassung. Änderst du auf zwei Geräten gleichzeitig ohne
 Internet, gewinnt die spätere Änderung, die frühere geht verloren. Meldet sich
 ein Gerät zum ersten Mal an, übernimmt es die gemeinsamen Listen und legt nur
-seine eigenen zusätzlichen Videos in die Inbox.
+seine eigenen zusätzlichen Videos nach Pick.
 
 ## Look
 
