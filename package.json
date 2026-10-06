@@ -1,0 +1,19 @@
+{
+  "name": "deine-roehre",
+  "productName": "Deine Röhre",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deine eigene YouTube-Liste ohne Empfehlungen (README.md).",
+  "type": "module",
+  "main": "app/main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

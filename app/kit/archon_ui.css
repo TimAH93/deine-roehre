@@ -1,0 +1,249 @@
+/* Archon Grid design kit (docs/ARCHON_UI.md: Tim's brief, 2026-10-02).
+   Ancient mechanism outside, modern software inside. The emblem carries the
+   ornament; the windows are black glass in a thin forged-iron frame; Fraktur
+   only for identity-level titles; everything functional in the system font.
+   Inlined into the pages by archon_grid.ui_css() together with the font
+   (UnifrakturMaguntia, SIL OFL, Tools/vendor). Prefix: ag-. */
+
+:root {
+  --ag-black: #040303;
+  --ag-glass: rgba(2, 1, 1, 0.38);         /* black glass; dark enough to read as a surface over the plain, never gray */
+  --ag-glass-focus: rgba(2, 1, 1, 0.46);
+  --ag-steel: linear-gradient(155deg, #8a827c 0%, #3a3634 28%, #5d5753 52%, #2a2726 78%, #6d6662 100%);   /* forged iron, lit from the top left */
+  --ag-steel-bright: linear-gradient(155deg, #b2a9a2 0%, #4a4442 28%, #7a736e 52%, #363231 78%, #8d857f 100%);
+  --ag-steel-dim: linear-gradient(155deg, #4e4a47 0%, #262423 28%, #3b3735 52%, #1d1b1b 78%, #45413e 100%);
+  --ag-iron: #4a4644;                      /* blackened iron, the frame */
+  --ag-iron-bright: #7a7470;               /* the frame under the mouse or in focus */
+  --ag-iron-dim: #333130;                  /* an inactive window's frame */
+  --ag-text: #f5f5f5;
+  --ag-text-dim: #a9a5a1;
+  --ag-ivory: #efe6d6;                     /* Fraktur at rest */
+  --ag-ember: #ff4a1c;                     /* energy, focus, feedback; never a flood */
+  --ag-ember-soft: #ff8a3c;
+  --ag-radius: 3px;
+  --ag-pad: 16px;
+  --ag-gap: 8px;
+  --ag-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ---- typography: two systems -------------------------------------------- */
+.ag-title {
+  font-family: "UnifrakturMaguntia", "Old English Text MT", serif;
+  font-weight: normal; font-size: 24px; line-height: 1.1; letter-spacing: 0.01em;
+  color: var(--ag-ivory); margin: 0; text-transform: none;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+  transition: color 160ms var(--ag-ease);
+}
+.ag-title.ag-small { font-size: 19px; }
+.ag-title.ag-large { font-size: 32px; }
+.ag-text { font: 14px/1.45 "Segoe UI", "SF Pro Text", system-ui, sans-serif; color: var(--ag-text); }
+.ag-dim { color: var(--ag-text-dim); }
+
+/* ---- the window: black glass in a forged frame ---------------------------- */
+.ag-window {
+  position: relative;
+  background: var(--ag-glass);
+  -webkit-backdrop-filter: blur(14px) saturate(0.85);
+  backdrop-filter: blur(14px) saturate(0.85);
+  border: 2px solid transparent;
+  border-image: var(--ag-steel) 1;          /* the forged frame: a metal gradient, lit from the top left */
+  border-radius: 0;
+  box-shadow: 0 0 0 1px #070606,                         /* the dark outer edge of the frame */
+              inset 0 0 0 1px rgba(0, 0, 0, 0.7),         /* the bevel into the glass */
+              inset 0 1px 0 rgba(255, 255, 255, 0.07),    /* a cool highlight on the inner top edge */
+              0 14px 36px rgba(0, 0, 0, 0.6);
+  color: var(--ag-text);
+  overflow-wrap: anywhere;   /* a squished window breaks its lines instead of cutting them (Tim: Zeilenumbruch) */
+  transition: background-color 160ms var(--ag-ease), transform 120ms var(--ag-ease), box-shadow 160ms var(--ag-ease);
+}
+/* the corners, sculpted: a short bright iron piece on each (the lower pair drawn by .ag-sweep's sibling rules below) */
+.ag-window::before, .ag-window::after {
+  content: ""; position: absolute; width: 10px; height: 10px; pointer-events: none;
+  border-color: #a39a93; border-style: solid; opacity: 0.9;
+}
+.ag-window::before { left: -2px; top: -2px; border-width: 2px 0 0 2px; }
+.ag-window::after { right: -2px; bottom: -2px; border-width: 0 2px 2px 0; }
+.ag-corner { position: absolute; width: 10px; height: 10px; pointer-events: none; border-color: #a39a93; border-style: solid; opacity: 0.9; }
+.ag-corner.ag-tr { right: -2px; top: -2px; border-width: 2px 2px 0 0; }
+.ag-corner.ag-bl { left: -2px; bottom: -2px; border-width: 0 0 2px 2px; }
+.ag-window:hover { border-image: var(--ag-steel-bright) 1; }
+.ag-window.ag-focus { border-image: var(--ag-steel-bright) 1; background: var(--ag-glass-focus); }
+.ag-window.ag-inactive { border-image: var(--ag-steel-dim) 1; }
+.ag-window.ag-dragging { border-image: var(--ag-steel-bright) 1; background: rgba(2, 1, 1, 0.52); }
+.ag-window .ag-head {
+  display: flex; align-items: center; gap: var(--ag-gap);
+  padding: 10px var(--ag-pad) 8px; cursor: default; user-select: none;
+}
+.ag-window .ag-body { padding: 0 var(--ag-pad) var(--ag-pad); }
+/* a slightly darker field right under text, when the plain behind is bright */
+.ag-window .ag-ink { background: rgba(0, 0, 0, 0.32); border-radius: 2px; padding: 2px 6px; }
+
+/* ---- the active window: a thin warm highlight travels the perimeter, 4 s --- */
+@property --ag-sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.ag-window.ag-active { animation: none; }
+.ag-window.ag-active > .ag-sweep {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  padding: 1px;
+  background: conic-gradient(from var(--ag-sweep), transparent 0deg, transparent 300deg, rgba(255, 74, 28, 0.55) 340deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+  animation: ag-sweep 4s linear infinite;
+}
+@keyframes ag-sweep { to { --ag-sweep: 360deg; } }
+
+/* ---- compact menu windows: the Fraktur title and nothing else ----------- */
+.ag-menu-item {
+  display: inline-block; padding: 4px 12px 5px; cursor: pointer; white-space: nowrap;   /* compact (Tim): half the first padding, room for more options */
+  transform-origin: center; transition: transform 140ms var(--ag-ease), border-color 160ms var(--ag-ease);
+}
+.ag-menu-item > .ag-head { padding: 2px 6px; }   /* the compact window: the title and little else */
+.ag-menu-item:hover { transform: scale(1.025); }
+.ag-menu-item:hover .ag-title { color: #ffffff; }
+.ag-menu-item:active { transform: scale(0.985); transition-duration: 60ms; }
+.ag-menu-item:focus-visible { outline: none; box-shadow: 0 0 0 1px #070606, 0 0 0 2px rgba(255, 138, 60, 0.6); }
+
+/* ---- the return control: small, quiet, a gothic diamond ----------------- */
+.ag-return {
+  width: 18px; height: 18px; border: none; background: none; padding: 0; cursor: pointer; color: var(--ag-iron-bright);
+  display: inline-grid; place-items: center; transition: color 160ms var(--ag-ease);
+}
+.ag-return::before { content: ""; width: 8px; height: 8px; border: 1px solid currentColor; transform: rotate(45deg); }
+.ag-return:hover { color: var(--ag-ember-soft); }
+
+/* ---- functional controls inside a window -------------------------------- */
+.ag-window button, .ag-window select, .ag-window textarea, .ag-window input[type="text"] {
+  background: rgba(0, 0, 0, 0.35); color: var(--ag-text); border: 1px solid var(--ag-iron); border-radius: 2px;
+  padding: 5px 12px; font: inherit; cursor: pointer;
+}
+.ag-window button:hover, .ag-window select:hover { border-color: var(--ag-iron-bright); }
+.ag-window button:active { transform: scale(0.985); }
+.ag-window button[aria-pressed="true"] { border-color: var(--ag-ember); color: var(--ag-ember-soft); }
+.ag-window table { border-collapse: collapse; }
+.ag-window th { color: var(--ag-text-dim); font-weight: 500; text-align: left; }
+.ag-window td, .ag-window th { padding: 4px 10px 4px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+
+/* ---- success feedback: the text turns pure white and a warm underline passes */
+.ag-success { animation: ag-success 900ms var(--ag-ease) 1; }
+@keyframes ag-success {
+  0% { color: #ffffff; box-shadow: inset 0 -1px 0 rgba(255, 138, 60, 0); }
+  30% { color: #ffffff; box-shadow: inset 0 -1px 0 rgba(255, 138, 60, 0.9); }
+  100% { color: inherit; box-shadow: inset 0 -1px 0 rgba(255, 138, 60, 0); }
+}
+
+/* ---- the home emblem: states and idle life ------------------------------- */
+.ag-emblem {
+  cursor: pointer; transform-origin: center;
+  transition: transform 160ms var(--ag-ease), filter 160ms var(--ag-ease);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9)) contrast(1.12) brightness(1.06);
+}
+.ag-emblem:hover, .ag-emblem:focus-visible { transform: scale(1.04); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9)) contrast(1.18) brightness(1.12); outline: none; }
+.ag-emblem:active { transform: scale(0.98); transition-duration: 60ms; }
+.ag-emblem[aria-expanded="true"] { transform: scale(1.05) translateX(-4px); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9)) contrast(1.18) brightness(1.1); }
+/* rare ambient micro-animations, one at random every 8-20 s (archon_ui.js picks them); never together, never rhythmic */
+.ag-emblem.ag-life-twitch { animation: ag-life-twitch 220ms var(--ag-ease) 1; }
+.ag-emblem.ag-life-settle { animation: ag-life-settle 700ms var(--ag-ease) 1; }
+.ag-emblem.ag-life-glow { animation: ag-life-glow 1100ms ease-in-out 1; }
+.ag-emblem.ag-life-breath { animation: ag-life-breath 1600ms ease-in-out 1; }
+.ag-emblem.ag-life-tension { animation: ag-life-tension 420ms var(--ag-ease) 1; }
+@keyframes ag-life-twitch { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(1px); } }
+@keyframes ag-life-settle { 0%, 100% { transform: rotate(0); } 40% { transform: rotate(0.2deg); } 70% { transform: rotate(-0.1deg); } }
+@keyframes ag-life-glow { 0%, 100% { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9)) contrast(1.12) brightness(1.06); } 50% { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9)) contrast(1.14) brightness(1.13); } }
+@keyframes ag-life-breath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.006); } }
+@keyframes ag-life-tension { 0%, 100% { transform: scale(1) rotate(0); } 30% { transform: scale(0.995) rotate(-0.15deg); } 60% { transform: scale(1.003) rotate(0.1deg); } }
+
+/* ---- connector line from the emblem to a menu window ---------------------- */
+.ag-connector { stroke: var(--ag-iron-bright); stroke-width: 1; fill: none; opacity: 0.85; }
+.ag-connector.ag-draw { stroke-dasharray: var(--ag-len, 400); stroke-dashoffset: var(--ag-len, 400); animation: ag-draw 160ms var(--ag-ease) forwards; }
+@keyframes ag-draw { to { stroke-dashoffset: 0; } }
+
+/* ---- motion for a menu window appearing, staggered by the page ------------- */
+.ag-appear { animation: ag-appear 220ms var(--ag-ease) both; }
+@keyframes ag-appear { from { opacity: 0; transform: translateX(-6px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-emblem, .ag-menu-item, .ag-window, .ag-window.ag-active > .ag-sweep, .ag-appear, .ag-connector.ag-draw { animation: none !important; transition: none !important; }
+}
+
+/* ---- Cherubim's skin (Tim's reference, 2026-10-02): the window carries his emblem's language. Warm ivory
+   and gold instead of iron, a soft glow, rounded corners, feather strokes at the corners (drawn by
+   archon_ui.js), a glowing dot where the connector meets the window, a circle for the return. ---- */
+:root { --cb-gold: #e8b65a; --cb-gold-bright: #f3cf8a; --cb-ivory: #f6efe3; --cb-glow: rgba(255, 196, 110, 0.22); }
+.ag-window.ag-feather {
+  border: 1px solid rgba(232, 182, 90, 0.72); border-image: none; border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8), 0 0 16px var(--cb-glow), inset 0 0 0 1px rgba(255, 224, 170, 0.06), 0 14px 36px rgba(0, 0, 0, 0.6);
+  transition: border-color 160ms var(--ag-ease), box-shadow 160ms var(--ag-ease), background-color 160ms var(--ag-ease), transform 120ms var(--ag-ease);
+}
+.ag-window.ag-feather::before, .ag-window.ag-feather::after, .ag-window.ag-feather > .ag-corner { display: none; }   /* no iron ticks on feathers */
+.ag-window.ag-feather:hover, .ag-window.ag-feather.ag-focus { border-color: var(--cb-gold-bright); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8), 0 0 22px rgba(255, 200, 120, 0.34), inset 0 0 0 1px rgba(255, 224, 170, 0.08), 0 14px 36px rgba(0, 0, 0, 0.6); }
+.ag-window.ag-feather.ag-inactive { border-color: rgba(232, 182, 90, 0.4); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8), 0 14px 36px rgba(0, 0, 0, 0.6); }
+.ag-feather .ag-title { color: var(--cb-ivory); }
+.ag-feather.ag-menu-item { padding: 5px 16px 6px; }
+.ag-feather.ag-menu-item:hover .ag-title { color: #ffffff; }
+.ag-feathers { position: absolute; width: 72px; height: 72px; pointer-events: none; overflow: visible; }
+.ag-menu-item:not(.ag-expanded) > .ag-feathers { width: 30px; height: 30px; }   /* a compact window: short strokes at its ends */
+.ag-feathers.tl { left: -4px; top: -4px; } .ag-feathers.tr { right: -4px; top: -4px; transform: scaleX(-1); }
+.ag-feathers.bl { left: -4px; bottom: -4px; transform: scaleY(-1); } .ag-feathers.br { right: -4px; bottom: -4px; transform: scale(-1, -1); }
+.ag-feathers path { fill: none; stroke: url(#ag-feather-grad); stroke-linecap: round; }
+.ag-feather .ag-return { width: 26px; height: 26px; border: 1px solid var(--cb-gold); border-radius: 50%; color: var(--cb-ivory); font: 15px/1 "Segoe UI", system-ui, sans-serif; }
+.ag-feather .ag-return::before { content: "←"; border: none; transform: none; width: auto; height: auto; }
+.ag-feather .ag-return:hover { border-color: var(--cb-gold-bright); color: #fff; box-shadow: 0 0 8px var(--cb-glow); }
+.ag-connector.ag-gold { stroke: var(--cb-gold); opacity: 0.85; }
+.ag-connector.ag-gold.lit { stroke: var(--cb-gold-bright); filter: drop-shadow(0 0 3px rgba(255, 200, 120, 0.7)); }
+.ag-dot { fill: var(--cb-gold-bright); filter: drop-shadow(0 0 3px rgba(255, 200, 120, 0.9)); }
+/* the expanded window: a column of subcategories on the left (words and counts, no symbols), the content on the right */
+.ag-split { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; }
+.ag-split > * { min-width: 0; }   /* the content column may shrink, so its text wraps instead of pushing the window wider */
+.ag-cats .ag-cat { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: 6px; cursor: pointer; color: var(--ag-text); font-size: 13px; transition: background-color 120ms var(--ag-ease), transform 120ms var(--ag-ease); }
+.ag-cats .ag-cat .n { color: var(--ag-text-dim); font-size: 12px; }
+.ag-cats .ag-cat:hover { background: rgba(255, 255, 255, 0.05); transform: translateX(2px); color: #fff; }
+.ag-feather .ag-cats .ag-cat.on { background: rgba(232, 182, 90, 0.12); box-shadow: inset 0 0 0 1px rgba(232, 182, 90, 0.35); color: var(--cb-ivory); }
+
+/* ---- Archon Grid's skin (Tim's reference, 2026-10-02): the same logic as Cherubim's, in the grid's own
+   red. A thin ember line with a soft glow over an iron inner line, four-pointed iron stars at the corners
+   (drawn by archon_ui.js), ember diamonds where a path begins and ends, a small iron square for the return. */
+.ag-window.ag-iron {
+  border: 1px solid rgba(255, 74, 28, 0.55); border-image: none; border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.85), 0 0 14px rgba(255, 74, 28, 0.16), inset 0 0 0 1px rgba(190, 180, 172, 0.16), 0 14px 36px rgba(0, 0, 0, 0.6);
+  transition: border-color 160ms var(--ag-ease), box-shadow 160ms var(--ag-ease), background-color 160ms var(--ag-ease), transform 120ms var(--ag-ease);
+}
+.ag-window.ag-iron::before, .ag-window.ag-iron::after, .ag-window.ag-iron > .ag-corner { display: none; }
+.ag-window.ag-iron:hover, .ag-window.ag-iron.ag-focus { border-color: rgba(255, 110, 60, 0.85); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.85), 0 0 20px rgba(255, 74, 28, 0.28), inset 0 0 0 1px rgba(190, 180, 172, 0.22), 0 14px 36px rgba(0, 0, 0, 0.6); }
+.ag-window.ag-iron.ag-inactive { border-color: rgba(255, 74, 28, 0.3); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.85), 0 14px 36px rgba(0, 0, 0, 0.6); }
+.ag-stars { position: absolute; width: 22px; height: 22px; pointer-events: none; overflow: visible; }
+.ag-stars.tl { left: -11px; top: -11px; } .ag-stars.tr { right: -11px; top: -11px; } .ag-stars.bl { left: -11px; bottom: -11px; } .ag-stars.br { right: -11px; bottom: -11px; }
+.ag-stars path { fill: url(#ag-star-grad); stroke: rgba(255, 110, 60, 0.7); stroke-width: 0.6; }
+.ag-iron .ag-return { width: 24px; height: 24px; border: 1px solid rgba(190, 180, 172, 0.5); border-radius: 4px; color: var(--ag-text); font: 14px/1 "Segoe UI", system-ui, sans-serif; }
+.ag-iron .ag-return::before { content: "‹"; border: none; transform: none; width: auto; height: auto; font-size: 18px; line-height: 1; margin-top: -3px; }
+.ag-iron .ag-return:hover { border-color: var(--ag-ember-soft); color: #fff; box-shadow: 0 0 8px rgba(255, 74, 28, 0.3); }
+.ag-connector.ag-red { stroke: rgba(255, 90, 40, 0.75); }
+.ag-connector.ag-red.lit { stroke: var(--ag-ember-soft); opacity: 1; filter: drop-shadow(0 0 3px rgba(255, 74, 28, 0.7)); }
+.ag-diamond { fill: #ff5a24; stroke: #ffd2b8; stroke-width: 0.6; filter: drop-shadow(0 0 3px rgba(255, 74, 28, 0.9)); }
+.ag-iron .ag-cats .ag-cat.on { background: rgba(255, 74, 28, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 74, 28, 0.35); color: #fff; }
+
+/* ---- closing a window: a small, quiet × top right ---- */
+.ag-close { position: absolute; right: 8px; top: 7px; width: 20px; height: 20px; border: none; background: none; padding: 0; color: var(--ag-text-dim); font: 16px/1 "Segoe UI", system-ui, sans-serif; cursor: pointer; border-radius: 3px; }
+.ag-close:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+
+/* ---- resizing: the edges and the corner are hit zones, nothing is drawn until the mouse is near ---- */
+.ag-resize { position: absolute; z-index: 2; }
+.ag-resize.r { right: -6px; top: 10px; bottom: 18px; width: 12px; cursor: ew-resize; }
+.ag-resize.b { left: 10px; right: 18px; bottom: -6px; height: 12px; cursor: ns-resize; }
+.ag-resize.br { right: -6px; bottom: -6px; width: 20px; height: 20px; cursor: nwse-resize; }
+.ag-resize::after { content: ""; position: absolute; inset: 4px; border-radius: 2px; background: transparent; transition: background-color 120ms var(--ag-ease); }
+.ag-resize:hover::after { background: rgba(255, 255, 255, 0.12); }
+/* the corner shows a quiet grip (two short diagonal strokes), so the resize can be found; the edges stay invisible until hovered */
+.ag-resize.br::before { content: ""; position: absolute; right: 7px; bottom: 7px; width: 8px; height: 8px; pointer-events: none; opacity: 0.55;
+  background: linear-gradient(135deg, transparent 0 40%, var(--ag-iron-bright) 40% 50%, transparent 50% 70%, var(--ag-iron-bright) 70% 80%, transparent 80%); transition: opacity 120ms var(--ag-ease); }
+.ag-resize.br:hover::before { opacity: 1; }
+.ag-feather .ag-resize.br::before { background: linear-gradient(135deg, transparent 0 40%, var(--cb-gold) 40% 50%, transparent 50% 70%, var(--cb-gold) 70% 80%, transparent 80%); }
+.ag-iron .ag-resize.br::before { background: linear-gradient(135deg, transparent 0 40%, var(--ag-ember-soft) 40% 50%, transparent 50% 70%, var(--ag-ember-soft) 70% 80%, transparent 80%); }
+.ag-feather .ag-resize:hover::after { background: rgba(243, 207, 138, 0.35); }
+.ag-iron .ag-resize:hover::after { background: rgba(255, 110, 60, 0.35); }
+.ag-resizing { user-select: none; }
+
+/* ---- scrollbars, subdued: thin, dark, iron ---- */
+.ag-window, .ag-window * { scrollbar-width: thin; scrollbar-color: #3a3634 transparent; }
+.ag-window ::-webkit-scrollbar, .ag-window::-webkit-scrollbar { width: 7px; height: 7px; }
+.ag-window ::-webkit-scrollbar-track, .ag-window::-webkit-scrollbar-track { background: transparent; }
+.ag-window ::-webkit-scrollbar-thumb, .ag-window::-webkit-scrollbar-thumb { background: #3a3634; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.6); }
+.ag-window ::-webkit-scrollbar-thumb:hover, .ag-window::-webkit-scrollbar-thumb:hover { background: #5a5452; }

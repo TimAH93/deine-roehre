@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" data-theme="archon">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Only this app's own files, YouTube's player script and frame, and YouTube's thumbnails. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube-nocookie.com https://www.youtube.com; img-src 'self' https://i.ytimg.com data:; font-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'">
+<title>Deine Röhre</title>
+<link rel="stylesheet" href="ui_base.css">
+<link rel="stylesheet" href="archon_ui.css">
+<link rel="stylesheet" href="app.css">
+<script src="ui_base.js"></script>
+<script src="archon_ui.js"></script>
+</head>
+<body class="ub ag-text">
+<!-- Home: the Archon Grid emblem (or the word, when the emblem is not on this PC). It opens the compact menu. -->
+<button class="ub-home wl-home" id="home" type="button" aria-label="Deine Röhre: menu">
+  <img class="ag-emblem" id="emblem" src="emblem" alt="">
+  <span class="ag-title wl-word" id="word" hidden>Deine Röhre</span>
+</button>
+
+<!-- The menu: compact windows, the Fraktur title only, one thin ember line each from home. -->
+<nav class="ub-menu" aria-label="Menu">
+  <div class="ub-menu-items">
+    <button class="ub-item ag-window ag-iron ag-menu-item" type="button" data-window="w-inbox"><span class="ag-title ag-small">Inbox</span></button>
+    <button class="ub-item ag-window ag-iron ag-menu-item" type="button" data-window="w-days"><span class="ag-title ag-small">Days</span></button>
+    <button class="ub-item ag-window ag-iron ag-menu-item" type="button" data-window="w-music"><span class="ag-title ag-small">Music</span></button>
+    <button class="ub-item ag-window ag-iron ag-menu-item" type="button" data-window="w-settings"><span class="ag-title ag-small">Settings</span></button>
+  </div>
+</nav>
+
+<!-- Each item grows into its window: black glass in the iron-and-ember frame; Fraktur title, everything else plain. -->
+<section class="ub-window ag-window ag-iron wl-list" id="w-inbox" aria-label="Inbox" hidden>
+  <header class="ub-head ag-head"><button class="ub-return ag-return" type="button" aria-label="Back to the menu" title="Back to the menu"></button><h2 class="ag-title">Inbox</h2></header>
+  <div class="ub-body" id="inbox"></div>
+</section>
+<section class="ub-window ag-window ag-iron wl-list" id="w-days" aria-label="Days" hidden>
+  <header class="ub-head ag-head"><button class="ub-return ag-return" type="button" aria-label="Back to the menu" title="Back to the menu"></button><h2 class="ag-title">Days</h2></header>
+  <div class="ub-body ag-split" id="days"><div class="ag-cats" id="day-cats"></div><div id="day"></div></div>
+</section>
+<section class="ub-window ag-window ag-iron wl-list" id="w-music" aria-label="Music" hidden>
+  <header class="ub-head ag-head"><button class="ub-return ag-return" type="button" aria-label="Back to the menu" title="Back to the menu"></button><h2 class="ag-title">Music</h2></header>
+  <div class="ub-body" id="music"></div>
+</section>
+<section class="ub-window ag-window ag-iron" id="w-settings" aria-label="Settings" hidden>
+  <header class="ub-head ag-head"><button class="ub-return ag-return" type="button" aria-label="Back to the menu" title="Back to the menu"></button><h2 class="ag-title">Settings</h2></header>
+  <div class="ub-body" id="settings"></div>
+</section>
+
+<!-- The player: a window of its own, beside whichever list is open. -->
+<section class="ub-window ag-window ag-iron" id="w-player" aria-label="Player" hidden>
+  <header class="ub-head ag-head wl-bar" id="bar"></header>
+  <div class="wl-screen">
+    <div id="player"></div>
+    <div class="wl-cover" id="cover" hidden></div>
+  </div>
+</section>
+
+<p class="wl-toast" id="toast" role="status" aria-live="polite"></p>
+<script type="module" src="app.mjs"></script>
+</body>
+</html>

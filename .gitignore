@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Pictures in brand/ stay on Tim's PC (brand/README.md)
+brand/*.png
+brand/*.jpg
+brand/*.jpeg
+brand/*.webp

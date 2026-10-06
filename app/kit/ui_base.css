@@ -1,0 +1,197 @@
+/* UI base (docs/UI_BASE.md, Tim 2026-10-06): the Archon Grid UI's behaviour without its decoration,
+   the design guideline for every tool, in Eisenfaust and in other projects. Plain CSS, no fonts, no
+   images. Home -> compact menu -> the item becomes its window -> return. A project changes the tokens;
+   decoration belongs in its own skin file. Prefix: ub-. Behaviour: Tools/ui_base.js. */
+
+/* ---- tokens: light (default), dark, and the system's choice when no theme is set ---- */
+:root, [data-theme="light"] {
+  --ub-bg: #f4f7fb; --ub-surface: rgba(255, 255, 255, 0.82); --ub-solid: #ffffff; --ub-sunken: #f1f5f9;
+  --ub-line: #e2e8f0; --ub-line-strong: #cbd5e1;
+  --ub-text: #0f172a; --ub-text-2: #64748b; --ub-text-3: #94a3b8; --ub-strong: #000000;
+  --ub-accent: #3b82f6; --ub-on-accent: #ffffff;
+  --ub-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.08);
+  --ub-scroll: #cbd5e1;
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --ub-bg: #0b1220; --ub-surface: rgba(17, 25, 42, 0.84); --ub-solid: #111a2c; --ub-sunken: #0d1526;
+  --ub-line: #1f2a40; --ub-line-strong: #33415c;
+  --ub-text: #e5edf7; --ub-text-2: #94a3b8; --ub-text-3: #64748b; --ub-strong: #ffffff;
+  --ub-accent: #60a5fa; --ub-on-accent: #0b1220;
+  --ub-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
+  --ub-scroll: #33415c;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --ub-bg: #0b1220; --ub-surface: rgba(17, 25, 42, 0.84); --ub-solid: #111a2c; --ub-sunken: #0d1526;
+    --ub-line: #1f2a40; --ub-line-strong: #33415c;
+    --ub-text: #e5edf7; --ub-text-2: #94a3b8; --ub-text-3: #64748b; --ub-strong: #ffffff;
+    --ub-accent: #60a5fa; --ub-on-accent: #0b1220;
+    --ub-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
+    --ub-scroll: #33415c;
+    color-scheme: dark;
+  }
+}
+/* Archon plain: the base in the Archon Grid's own colours (black glass, ember red), no ornament.
+   An example of a skin that is only tokens (docs/ARCHON_UI.md keeps the decorated one). */
+[data-theme="archon"] {
+  --ub-bg: #040303; --ub-surface: rgba(10, 8, 8, 0.78); --ub-solid: #0d0b0b; --ub-sunken: #070606;
+  --ub-line: #2c2827; --ub-line-strong: #4a4644;
+  --ub-text: #f5f5f5; --ub-text-2: #a9a5a1; --ub-text-3: #77726e; --ub-strong: #ffffff;
+  --ub-accent: #ff4a1c; --ub-on-accent: #0d0b0b;
+  --ub-shadow: 0 0 0 1px #000, 0 14px 36px rgba(0, 0, 0, 0.6);
+  --ub-scroll: #3a3634;
+  color-scheme: dark;
+}
+:root {
+  --ub-accent-soft: color-mix(in srgb, var(--ub-accent) 14%, transparent);
+  --ub-radius: 10px; --ub-radius-sm: 7px;
+  --ub-pad: 16px; --ub-gap: 8px;
+  --ub-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ub-font: "Segoe UI Variable Text", "Segoe UI", -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --ub-title-font: var(--ub-font);   /* a skin may set a display font here, for identity-level titles only */
+}
+
+/* ---- the page ---- */
+.ub { margin: 0; background: var(--ub-bg); color: var(--ub-text); font: 14px/1.45 var(--ub-font); -webkit-font-smoothing: antialiased; }
+.ub *, .ub *::before, .ub *::after { box-sizing: border-box; }
+.ub button, .ub input, .ub select, .ub textarea { font: inherit; color: inherit; }
+.ub :focus-visible { outline: 2px solid var(--ub-accent); outline-offset: 2px; }
+.ub-dim { color: var(--ub-text-2); }
+.ub-num { font-variant-numeric: tabular-nums; }
+.ub-title { font: 600 15px/1.2 var(--ub-title-font); margin: 0; color: var(--ub-text); letter-spacing: 0.005em; transition: color 160ms var(--ub-ease); }
+.ub-section { margin: 24px 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ub-text-3); }
+.ub-section:first-child { margin-top: 0; }
+
+/* ---- home: the one control the page starts with ---- */
+.ub-home {
+  position: fixed; left: 16px; top: 16px; z-index: 20;
+  height: 40px; padding: 0 16px; border-radius: var(--ub-radius); border: 1px solid var(--ub-line);
+  background: var(--ub-surface); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--ub-shadow);
+  font-weight: 650; letter-spacing: 0.01em; cursor: pointer; transform-origin: left center;
+  transition: transform 160ms var(--ub-ease), border-color 160ms var(--ub-ease);
+}
+.ub-home:hover { transform: scale(1.03); border-color: var(--ub-line-strong); }
+.ub-home:active { transform: scale(0.98); transition-duration: 60ms; }
+.ub-home[aria-expanded="true"] { border-color: color-mix(in srgb, var(--ub-accent) 55%, var(--ub-line)); }
+
+/* ---- the compact menu: title-only items, one thin line each from home ---- */
+.ub-menu { position: fixed; z-index: 19; left: 0; top: 0; pointer-events: none; }
+.ub-menu-items { position: fixed; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.ub-lines { position: fixed; inset: 0; width: 100vw; height: 100vh; overflow: visible; pointer-events: none; }
+.ub-line { stroke: var(--ub-line-strong); stroke-width: 1; fill: none; transition: stroke 160ms var(--ub-ease), opacity 160ms var(--ub-ease); }
+.ub-line.ub-lit { stroke: var(--ub-accent); }
+.ub-line.ub-draw { stroke-dasharray: var(--ub-len, 400); stroke-dashoffset: var(--ub-len, 400); animation: ub-draw 160ms var(--ub-ease) forwards; }
+@keyframes ub-draw { to { stroke-dashoffset: 0; } }
+.ub-item {
+  pointer-events: auto; visibility: hidden; opacity: 0;
+  padding: 6px 14px; border-radius: var(--ub-radius-sm); border: 1px solid var(--ub-line);
+  background: var(--ub-surface); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--ub-shadow);
+  cursor: pointer; white-space: nowrap; transform-origin: left center;
+  transition: transform 140ms var(--ub-ease), border-color 160ms var(--ub-ease), opacity 160ms var(--ub-ease);
+}
+.ub-menu.ub-open .ub-item { visibility: visible; opacity: 1; }
+.ub-menu.ub-open .ub-item.ub-appear { animation: ub-appear 220ms var(--ub-ease) both; }
+.ub-item:hover { transform: scale(1.025); border-color: var(--ub-line-strong); }
+.ub-item:hover .ub-title { color: var(--ub-strong); }
+.ub-item:active { transform: scale(0.985); transition-duration: 60ms; }
+.ub-menu.ub-expanded .ub-item, .ub-menu.ub-expanded .ub-line { opacity: 0; pointer-events: none; }
+.ub-menu.ub-expanded .ub-item { transform: translateX(-6px) scale(0.97); }
+@keyframes ub-appear { from { opacity: 0; transform: translateX(-6px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* ---- the window ---- */
+.ub-window {
+  position: fixed; z-index: 10; display: flex; flex-direction: column;
+  min-width: 220px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px);
+  background: var(--ub-surface); -webkit-backdrop-filter: blur(16px) saturate(1.1); backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid var(--ub-line); border-radius: var(--ub-radius); box-shadow: var(--ub-shadow);
+  color: var(--ub-text); overflow-wrap: anywhere;
+  transition: border-color 160ms var(--ub-ease), opacity 160ms var(--ub-ease);
+}
+.ub-window[hidden] { display: none; }
+.ub-window:hover { border-color: var(--ub-line-strong); }
+.ub-window.ub-focus { border-color: color-mix(in srgb, var(--ub-accent) 35%, var(--ub-line-strong)); }
+.ub-window.ub-inactive { opacity: 0.94; }
+.ub-window.ub-dragging { border-color: color-mix(in srgb, var(--ub-accent) 55%, var(--ub-line-strong)); }
+.ub-head { display: flex; align-items: center; gap: var(--ub-gap); padding: 12px 44px 10px var(--ub-pad); user-select: none; cursor: default; }
+.ub-body { padding: 4px var(--ub-pad) var(--ub-pad); overflow: auto; min-height: 0; flex: 1; }
+.ub-window.ub-growing .ub-body { opacity: 0; }
+.ub-window .ub-body { transition: opacity 180ms var(--ub-ease) 90ms; }
+/* the active window: a faint accent travels the edge, 4 s (optional; set .ub-active) */
+@property --ub-sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.ub-window.ub-active > .ub-sweep {
+  position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; padding: 1px;
+  background: conic-gradient(from var(--ub-sweep), transparent 0deg, transparent 300deg, color-mix(in srgb, var(--ub-accent) 60%, transparent) 340deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+  animation: ub-sweep 4s linear infinite;
+}
+@keyframes ub-sweep { to { --ub-sweep: 360deg; } }
+
+/* the return control: small and quiet, top left; the close control: a quiet x top right */
+.ub-return, .ub-close {
+  width: 24px; height: 24px; flex: none; padding: 0; display: inline-grid; place-items: center;
+  border: 1px solid var(--ub-line); border-radius: 6px; background: none; color: var(--ub-text-2); cursor: pointer;
+  font-size: 17px; line-height: 1; transition: color 120ms var(--ub-ease), border-color 120ms var(--ub-ease);
+}
+.ub-return:hover, .ub-close:hover { color: var(--ub-strong); border-color: var(--ub-line-strong); }
+.ub-close { position: absolute; right: 10px; top: 10px; border-color: transparent; }
+.ub-close:hover { background: var(--ub-sunken); }
+
+/* resizing: the right edge, the bottom edge, the corner; nothing drawn until the mouse is near, a faint grip in the corner */
+.ub-resize { position: absolute; z-index: 2; }
+.ub-resize.r { right: -6px; top: 12px; bottom: 18px; width: 12px; cursor: ew-resize; }
+.ub-resize.b { left: 12px; right: 18px; bottom: -6px; height: 12px; cursor: ns-resize; }
+.ub-resize.br { right: -6px; bottom: -6px; width: 20px; height: 20px; cursor: nwse-resize; }
+.ub-resize::after { content: ""; position: absolute; inset: 4px; border-radius: 3px; transition: background-color 120ms var(--ub-ease); }
+.ub-resize:hover::after { background: var(--ub-accent-soft); }
+.ub-resize.br::before { content: ""; position: absolute; right: 8px; bottom: 8px; width: 8px; height: 8px; opacity: 0.5; pointer-events: none;
+  background: linear-gradient(135deg, transparent 0 40%, var(--ub-text-3) 40% 50%, transparent 50% 70%, var(--ub-text-3) 70% 80%, transparent 80%); }
+.ub-resizing, .ub-resizing * { user-select: none; }
+
+/* ---- inside a window: subcategories left (words and counts), content right ---- */
+.ub-split { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; }
+.ub-split > * { min-width: 0; }
+.ub-cats { display: flex; flex-direction: column; gap: 2px; }
+.ub-cat { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 7px 10px; border: none; border-radius: var(--ub-radius-sm); background: none; text-align: left; font-size: 13px; cursor: pointer; transition: background-color 120ms var(--ub-ease); }
+.ub-cat .n { color: var(--ub-text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ub-cat:hover { background: var(--ub-sunken); }
+.ub-cat.on, .ub-cat[aria-current="true"] { background: var(--ub-accent-soft); color: var(--ub-accent); font-weight: 600; }
+
+/* ---- controls ---- */
+.ub-btn { height: 32px; padding: 0 14px; border-radius: var(--ub-radius-sm); border: 1px solid var(--ub-line); background: var(--ub-solid); font-weight: 500; font-size: 13px; cursor: pointer; transition: border-color 120ms var(--ub-ease), transform 120ms var(--ub-ease); }
+.ub-btn:hover { border-color: color-mix(in srgb, var(--ub-accent) 50%, var(--ub-line)); }
+.ub-btn:active { transform: scale(0.985); }
+.ub-btn.primary { background: var(--ub-accent); border-color: var(--ub-accent); color: var(--ub-on-accent); }
+.ub-btn[aria-pressed="true"] { border-color: var(--ub-accent); color: var(--ub-accent); }
+.ub-input { height: 32px; padding: 0 10px; border-radius: var(--ub-radius-sm); border: 1px solid var(--ub-line); background: var(--ub-solid); font-size: 13px; min-width: 0; }
+.ub-input:hover { border-color: var(--ub-line-strong); }
+textarea.ub-input { height: auto; padding: 8px 10px; resize: vertical; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.ub-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 9px; background: var(--ub-sunken); border: 1px solid var(--ub-line); }
+.ub-seg button { border: none; background: none; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--ub-text-2); cursor: pointer; }
+.ub-seg button[aria-pressed="true"] { background: var(--ub-solid); color: var(--ub-text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14); }
+.ub-row { display: flex; align-items: center; gap: var(--ub-gap); flex-wrap: wrap; }
+.ub-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ub-table th { color: var(--ub-text-2); font-weight: 500; text-align: left; }
+.ub-table td, .ub-table th { padding: 6px 12px 6px 0; border-bottom: 1px solid var(--ub-line); }
+.ub-table td.ub-num, .ub-table th.ub-num { text-align: right; }
+.ub-table tbody tr:hover td { background: var(--ub-sunken); }
+.ub-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--ub-line); color: var(--ub-text-2); }
+.ub-kbd { font-size: 11px; padding: 1px 6px; border: 1px solid var(--ub-line); border-radius: 5px; color: var(--ub-text-2); background: var(--ub-solid); }
+
+/* ---- success: the text turns full strength and a short accent underline passes ---- */
+.ub-success { animation: ub-success 900ms var(--ub-ease) 1; }
+@keyframes ub-success {
+  0% { color: var(--ub-strong); box-shadow: inset 0 -2px 0 transparent; }
+  30% { color: var(--ub-strong); box-shadow: inset 0 -2px 0 var(--ub-accent); }
+  100% { box-shadow: inset 0 -2px 0 transparent; }
+}
+
+/* ---- scrollbars: thin and quiet ---- */
+.ub-window, .ub-window * { scrollbar-width: thin; scrollbar-color: var(--ub-scroll) transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ub *, .ub *::before, .ub *::after { animation: none !important; transition: none !important; }
+  .ub-line.ub-draw { stroke-dashoffset: 0; }
+}
