@@ -190,3 +190,26 @@ test('days that are over close by themselves; unwatched videos go back', () => {
   assert.deepEqual(s.days, []);
   assert.deepEqual(s.inbox, [B]);
 });
+
+test('own files: new ones go to Pick, a removed one stays away, missing ones leave, titles cleaned', () => {
+  const s = L.emptyState(), now = at('2026-10-06T10:00');
+  const f1 = 'f_0123456789abcdef', f2 = 'f_fedcba9876543210';
+  assert.equal(L.fileTitle('My.Show.S01E02.1080p.WEB-DL.mp4'), 'My Show S01E02');
+  assert.equal(L.isFile(f1), true);
+  assert.equal(L.isFile(A), false);
+  assert.deepEqual(L.addFiles(s, [{ id: f1, path: 'Show/My.Show.S01E02.mp4', size: 10 }, { id: f2, path: 'Film.mkv', size: 20 }, { id: 'bad', path: 'x' }], now), [f1, f2]);
+  assert.deepEqual(s.inbox, [f1, f2]);
+  assert.equal(s.videos[f1].title, 'My Show S01E02');
+  assert.deepEqual(L.planFor(s, f1, 'today', now), {});
+  assert.equal(L.canPlay(s, f1, now), true);
+  L.removeVideo(s, f2);
+  assert.deepEqual(L.addFiles(s, [{ id: f2, path: 'Film.mkv' }], now), []);            // removed: stays away
+  assert.deepEqual(L.addFiles(s, [{ id: f1, path: 'Moved/My.Show.S01E02.mp4' }], now), []);
+  assert.equal(s.videos[f1].path, 'Moved/My.Show.S01E02.mp4');                          // known: new path
+  const again = L.cleanState(JSON.parse(JSON.stringify(s)));
+  assert.equal(again.videos[f1].kind, 'file');
+  assert.equal(L.placeOf(again, f1), again.days[0].id);
+  assert.equal(L.dropMissingFiles(s, []), 1);
+  assert.equal(s.videos[f1], undefined);
+  assert.deepEqual(s.days[0].items, []);
+});

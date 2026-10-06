@@ -2,7 +2,8 @@
 // time windows, the daily limit. The page (app.mjs) and the tests (tests/lists.test.mjs) both use this file.
 //
 // The saved state (lists.json, kept by main.mjs):
-//   videos: { [id]: { id, title, channel, added, published } }   every video that is still in a list
+//   videos: { [id]: { id, title, channel, added, published } }   every video that is still in a list; a file of
+//           Tim's own (README "Eigene Videos") has an id f_<16 hex>, kind 'file', its path in the folder and size
 //   inbox:  [id]                                      picked up, not planned yet; nothing in here plays
 //   feed:   [id]                                      new uploads of Tim's subscribed channels (Google sign-in),
 //                                                     newest first; nothing in here plays either
@@ -19,6 +20,9 @@
 export const DEFAULT_PER_DAY = 3;
 export const FEED_MAX = 300, SEEN_MAX = 5000;
 const ID = /^[A-Za-z0-9_-]{11}$/;
+const FILE_ID = /^f_[0-9a-f]{16}$/;
+export const isFile = (id) => FILE_ID.test(String(id || ''));
+const known = (id) => ID.test(id) || FILE_ID.test(id);   // a YouTube video or one of Tim's files
 
 // The video id in one YouTube link (watch, youtu.be, shorts, embed, live, music, mobile) or a bare 11-character id.
 export function videoId(text) {
@@ -59,12 +63,13 @@ export function cleanState(raw) {
   const s = emptyState(), r = raw && typeof raw === 'object' ? raw : {};
   for (const [id, v] of Object.entries(r.videos || {})) {
     if (ID.test(id)) s.videos[id] = { id, title: String(v?.title || ''), channel: String(v?.channel || ''), added: String(v?.added || ''), published: String(v?.published || '') };
+    else if (FILE_ID.test(id) && v?.path) s.videos[id] = { id, kind: 'file', title: String(v.title || ''), channel: '', added: String(v.added || ''), published: '', path: String(v.path), size: Number(v.size) || 0 };
   }
   const ids = (list) => [...new Set((Array.isArray(list) ? list : []).filter((id) => s.videos[id]))];
   s.inbox = ids(r.inbox);
   s.music = ids(r.music);
   s.feed = ids(r.feed);
-  s.seen = [...new Set((Array.isArray(r.seen) ? r.seen : []).filter((id) => ID.test(id)))].slice(-SEEN_MAX);
+  s.seen = [...new Set((Array.isArray(r.seen) ? r.seen : []).filter(known))].slice(-SEEN_MAX);
   s.lastCheck = isNaN(Date.parse(r.lastCheck)) ? '' : String(r.lastCheck);
   s.updated = isNaN(Date.parse(r.updated)) ? '' : String(r.updated);
   s.days = (Array.isArray(r.days) ? r.days : []).filter((d) => d && d.id && /^\d{4}-\d{2}-\d{2}$/.test(d.date)).map((d) => ({
@@ -188,6 +193,36 @@ export function addToFeed(state, items, now = new Date()) {
   for (const id of state.feed.splice(FEED_MAX)) delete state.videos[id];
   if (state.seen.length > SEEN_MAX) state.seen.splice(0, state.seen.length - SEEN_MAX);
   return added.filter((id) => state.videos[id]);
+}
+
+// A file's name as a title: "My.Show.S01E02.1080p.mp4" -> "My Show S01E02".
+export function fileTitle(name) {
+  return String(name || '').replace(/\.[^.]+$/, '')
+    .replace(/[._]+/g, ' ')
+    .replace(/\b(1080p|720p|2160p|480p|x264|x265|h264|h265|hevc|web-?dl|webrip|bluray|aac|hdr)\b/gi, '')
+    .replace(/\s{2,}/g, ' ').trim() || String(name || '');
+}
+
+// Tim's video folder, looked at: [{ id, path, name, size }]. New files go to Pick (the inbox); a file Tim removed
+// stays away (seen); a known file keeps its place and gets its current path. Returns the ids that were new.
+export function addFiles(state, files, now = new Date()) {
+  const added = [];
+  for (const f of files) {
+    if (!FILE_ID.test(f?.id || '') || !f.path) continue;
+    const v = state.videos[f.id];
+    if (v) { v.path = String(f.path); v.size = Number(f.size) || 0; continue; }
+    if (state.seen.includes(f.id)) continue;
+    state.videos[f.id] = { id: f.id, kind: 'file', title: fileTitle(f.name || f.path.split(/[\\/]/).pop()), channel: '', added: now.toISOString(), published: '', path: String(f.path), size: Number(f.size) || 0 };
+    state.inbox.push(f.id); state.seen.push(f.id); added.push(f.id);
+  }
+  return added;
+}
+// Files no longer in the folder leave every list. Returns how many.
+export function dropMissingFiles(state, present) {
+  const here = new Set(present);
+  const gone = Object.keys(state.videos).filter((id) => FILE_ID.test(id) && !here.has(id));
+  for (const id of gone) removeVideo(state, id);
+  return gone.length;
 }
 
 // A YouTube playlist into Music: [{ id, title, channel }]. New videos are added; ones waiting in the inbox or the feed

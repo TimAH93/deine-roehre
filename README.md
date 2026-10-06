@@ -80,6 +80,33 @@ pausiert, Pfeiltasten springen 5 Sekunden, die Medientasten gehen auch.
 „Mini“ (am PC): ein kleiner Player unten rechts, immer im Vordergrund.
 Pause- und Endbildschirm von YouTube werden abgedeckt, also keine Empfehlungen.
 
+## Eigene Videos (am PC)
+
+Videodateien in deinem Ordner `Videos\Deine Röhre` (und seinen Unterordnern)
+erscheinen von selbst in **Pick** unter **Files**: beim Start, alle 5 Minuten
+und mit „Look in the folder“. Du planst sie wie YouTube-Videos (Today,
+Saturday); sie spielen direkt im Player, ohne YouTube. Den Ordner öffnest oder
+wechselst du in **Settings, Your videos**. Eine Datei, die du in der App
+entfernst, kommt nicht wieder; eine, die du aus dem Ordner löschst,
+verschwindet aus den Listen.
+
+Was spielt: mp4, m4v und mov überall; webm und mkv meistens am PC, aber nicht
+auf dem iPhone.
+
+## iPhone zu Hause (über den PC, im WLAN)
+
+1. Am PC: **Settings, iPhone at home** auf **On**. Windows fragt einmal, ob
+   Deine Röhre ins Netzwerk darf: für **private Netzwerke** erlauben.
+2. Settings zeigt eine Adresse wie `http://192.168.1.23:47832` und einen
+   6-stelligen Code.
+3. Auf dem iPhone (im selben WLAN) die Adresse in Safari öffnen, den Code
+   einmal eingeben. Dann **Teilen, Zum Home-Bildschirm**.
+
+Das iPhone zeigt dann die Listen des PCs, mit deinen eigenen Videos, und jede
+Änderung geht in ein paar Sekunden hin und her. Es geht nur, solange der PC an
+ist und Deine Röhre läuft. Ohne den Code kommt niemand in deinem WLAN an deine
+Listen oder Videos; **New code** in Settings meldet alle Handys ab.
+
 ## Mit Google anmelden (einmal einrichten, etwa 15 Minuten)
 
 Die App liest dein YouTube-Konto nur (Abos und Playlists) und ändert dort nichts.
@@ -182,6 +209,9 @@ Player; dann bietet die App „Open on YouTube“ an.
   (`google.mjs`), die Abfragen an YouTube und Drive (`google-api.mjs`, von PC
   und Web geteilt), Seite (`index.html`, `app.mjs`, `app.css`), Regeln
   (`lists.mjs`).
+- `app/home.mjs`: der Videoordner und der Heimserver fürs iPhone (Code,
+  Schlüssel, Videos mit Spulen); `app/lan-api.mjs` ist die Brücke der Seite
+  dort.
 - `web/`: was nur die Webseite braucht (`web-api.mjs` statt Electron,
   Manifest, Symbole, `sw.js`). `npm run site` baut `site/`; GitHub Pages
   veröffentlicht es (`.github/workflows/pages.yml`).

@@ -11,6 +11,17 @@ contextBridge.exposeInMainWorld('roehre', {
   fullscreen: () => ipcRenderer.send('wl:fullscreen'),          // the whole screen, or back (F11)
   youtube: (id) => ipcRenderer.send('wl:youtube', id),          // open on youtube.com in the browser
   onKey: (fn) => ipcRenderer.on('wl:key', (_e, action) => fn(action)),   // media keys: toggle / next / previous
+  // Tim's own videos and the iPhone at home (each answers { ok, value } or { ok: false, error }):
+  files: {
+    info: () => ipcRenderer.invoke('f:info'),                   // { folder, home, addresses, code, phones }
+    scan: () => ipcRenderer.invoke('f:scan'),                   // [{ id, path, name, size }] or null (no folder)
+    choose: () => ipcRenderer.invoke('f:choose'),               // pick another folder
+    open: () => ipcRenderer.invoke('f:open'),                   // show the folder in Explorer
+    base: () => ipcRenderer.invoke('f:base'),                   // { base, key } for the player
+    home: (on) => ipcRenderer.invoke('h:set', on),              // share with the iPhone at home, or stop
+    newCode: () => ipcRenderer.invoke('h:newCode'),
+  },
+  onRemote: (fn) => ipcRenderer.on('wl:remote', (_e, state) => fn(state)),   // the iPhone changed the lists
   // Google (read only; each answers { ok, value } or { ok: false, error, signedOut }):
   google: {
     status: () => ipcRenderer.invoke('g:status'),               // { configured, signedIn }

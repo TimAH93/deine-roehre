@@ -8,7 +8,8 @@
 import * as L from './lists.mjs';
 
 // The PC app's bridge (preload.cjs), or, in a browser (the iPhone, the tablet), the web version of it (web-api.mjs).
-const api = window.roehre || (await import('./web-api.mjs')).api;
+// At home on the iPhone the page comes from the PC's home server (port 47832) and uses its bridge (lan-api.mjs).
+const api = window.roehre || (await import(location.port === '47832' ? './lan-api.mjs' : './web-api.mjs')).api;
 if (!api.desktop) document.body.classList.add('wl-web');
 let google = { configured: false, signedIn: false };   // the Google sign-in (Settings), from the main program
 let checking = false, playlists = null;               // a look at the channels is running; Tim's playlists once loaded
@@ -138,7 +139,8 @@ function card(id, buttons, cls = '') {
   const v = state.videos[id];
   return h('li', { class: `wl-card${cls}` },
     h('button', { type: 'button', class: 'wl-thumb', 'aria-label': 'Show bigger: ' + title(id), onclick: () => preview(id) },
-      h('img', { src: L.thumbUrl(id), alt: '', loading: 'lazy', onerror: (e) => e.target.removeAttribute('src') })),
+      L.isFile(id) ? h('span', { class: 'wl-filethumb' }, (v?.path || '').split('.').pop().toUpperCase())
+        : h('img', { src: L.thumbUrl(id), alt: '', loading: 'lazy', onerror: (e) => e.target.removeAttribute('src') })),
     h('div', { class: 't', title: title(id) }, title(id)),
     h('div', { class: 'c' }, [v?.channel, state.feed.includes(id) ? ago(v?.published) : null, unavailable.has(id) ? 'plays only on youtube.com' : null].filter(Boolean).join(' · ')),
     h('div', { class: 'acts' }, buttons));
@@ -242,21 +244,26 @@ const paste = h('input', { type: 'text', placeholder: 'Paste YouTube links here 
 const addPasted = () => { addLinks(paste.value); paste.value = ''; };
 paste.addEventListener('keydown', (e) => { if (e.key === 'Enter') addPasted(); });
 function renderPick() {
-  const list = pickFilter === 'mine' ? state.inbox : pickFilter === 'channels' ? state.feed : [...state.inbox, ...state.feed];
+  const mine = state.inbox.filter((id) => !L.isFile(id)), own = state.inbox.filter((id) => L.isFile(id));
+  const list = pickFilter === 'mine' ? mine : pickFilter === 'files' ? own : pickFilter === 'channels' ? state.feed : [...state.inbox, ...state.feed];
   const seg = (key, label, n) => h('button', { type: 'button', 'aria-pressed': String(pickFilter === key), onclick: () => { pickFilter = key; renderPick(); } }, `${label} ${n}`);
   const checked = state.lastCheck ? `last look ${ago(state.lastCheck)}` : 'not looked yet';
   fill($('pick'),
     h('div', { class: 'wl-paste' }, paste, btn('Add', addPasted, 'wl-go')),
     h('div', { class: 'wl-row-of' },
       h('div', { class: 'ub-seg', role: 'group', 'aria-label': 'Show' },
-        seg('all', 'All', state.inbox.length + state.feed.length), seg('mine', 'Mine', state.inbox.length), seg('channels', 'Channels', state.feed.length)),
+        seg('all', 'All', state.inbox.length + state.feed.length), seg('mine', 'Mine', mine.length),
+        own.length || api.files ? seg('files', 'Files', own.length) : null, seg('channels', 'Channels', state.feed.length)),
+      pickFilter === 'files' && api.files ? btn('Look in the folder', () => lookAtFiles(true), 'wl-quiet') : null,
       pickFilter !== 'mine' && google.signedIn ? [
         h('span', { class: 'wl-sub', style: 'margin:0' }, checking ? 'Looking at your channels…' : `Channels: ${checked}`),
         btn('Look now', () => checkChannels(true), 'wl-quiet', { disabled: checking })] : null),
-    pickFilter !== 'mine' && !google.signedIn ? h('p', { class: 'wl-note' }, 'Sign in with Google (Settings) and the new videos of your subscribed channels appear here too, newest first. No recommendations.') : null,
+    pickFilter !== 'mine' && pickFilter !== 'files' && !google.signedIn && !api.home ? h('p', { class: 'wl-note' }, 'Sign in with Google (Settings) and the new videos of your subscribed channels appear here too, newest first. No recommendations.') : null,
     list.length
       ? h('ul', { class: 'wl-cards' }, list.map((id) => card(id, planButtons(id))))
-      : h('p', { class: 'wl-empty' }, pickFilter === 'channels' ? 'Nothing new from your channels.' : 'Copy a video\'s address on YouTube (or "Share, Copy link") and paste it here.'));
+      : h('p', { class: 'wl-empty' }, pickFilter === 'channels' ? 'Nothing new from your channels.'
+          : pickFilter === 'files' ? (api.files ? `Put video files (mp4, m4v, mov, webm, mkv) into your folder: ${homeState?.folder || 'Settings, Your videos'}. They appear here by themselves.` : 'Your own videos are on your PC.')
+          : 'Copy a video\'s address on YouTube (or "Share, Copy link") and paste it here.'));
 }
 
 const CHECK_EVERY = 3 * 3600 * 1000, FIRST_LOOK = 3 * 86400 * 1000, OVERLAP = 3600 * 1000;   // every 3 hours; the first look 3 days back
@@ -278,6 +285,26 @@ async function refreshGoogle() {
   if (r.ok) google = r.value;
   if (!google.signedIn) playlists = null;
 }
+// ---- Tim's own videos (the PC): a look at the folder at the start, every 5 minutes, and on demand ----
+let homeState = null;   // { folder, home, addresses, code, phones } from the PC
+async function lookAtFiles(byHand = false) {
+  if (!api.files) return;
+  const info = await api.files.info(); if (info.ok) homeState = info.value;
+  const r = await api.files.scan();
+  if (!r.ok) { if (byHand) say(r.error); return; }
+  if (!r.value) { if (byHand) say('The folder is not there yet: "Open the folder" (Settings) makes it.'); return; }
+  const added = L.addFiles(state, r.value), gone = L.dropMissingFiles(state, r.value.map((f) => f.id));
+  if (added.length) say(`${added.length} new ${added.length === 1 ? 'video' : 'videos'} from your folder (Pick, Files).`);
+  else if (byHand) say('Nothing new in your folder.');
+  if (added.length || gone) changed(); else render();
+}
+// The iPhone at home (or the PC, seen from the iPhone) changed the lists: take them when they are newer.
+api.onRemote?.((s) => {
+  if (L.newer(state, s) !== 'remote') return;
+  state = L.cleanState(s); render();
+  if (api.desktop) share();   // and on to Drive
+});
+
 // Days that are over close by themselves; what was not watched goes back to Pick.
 function tidy() {
   const before = state.days.length, back = L.tidyDays(state);
@@ -369,13 +396,35 @@ function renderSettings() {
     !api.desktop ? null : h('label', {}, 'Window stays in front of other programs',
       btn(state.settings.onTop ? 'On' : 'Off', () => { state.settings.onTop = !state.settings.onTop; api.onTop(state.settings.onTop); changed(); }, '', { 'aria-pressed': String(state.settings.onTop) })),
     h('label', {}, 'Window places and sizes', btn('Reset', () => { UB.reset(); say('Every window is back in its first place.'); })),
+    api.files ? [
+      h('div', { class: 'ub-section' }, 'Your videos'),
+      h('p', { class: 'wl-note' }, `Video files in ${homeState?.folder || 'your folder'} (and its folders) appear in Pick, Files. mp4 plays everywhere; mkv only on the PC.`),
+      h('div', { class: 'wl-row-of' }, btn('Open the folder', () => api.files.open()), btn('Choose another folder', async () => {
+        const r = await api.files.choose(); if (r.ok && r.value) { homeState = r.value; await lookAtFiles(true); renderSettings(); }
+      }, 'wl-quiet')),
+      h('div', { class: 'ub-section' }, 'iPhone at home'),
+      h('label', {}, 'Share with your iPhone in the home Wi-Fi',
+        btn(homeState?.home ? 'On' : 'Off', async () => {
+          const r = await api.files.home(!homeState?.home);
+          if (!r.ok) { say(r.error); return; }
+          homeState = r.value; renderSettings();
+          if (homeState.home) say('Windows may ask whether Deine Röhre may use the network: allow it for private networks.');
+        }, '', { 'aria-pressed': String(!!homeState?.home) })),
+      homeState?.home ? [
+        h('p', { class: 'wl-note' }, homeState.addresses.length
+          ? ['On your iPhone, in Safari: ', h('strong', {}, homeState.addresses[0]), ' then the code ', h('strong', { class: 'wl-code' }, homeState.code),
+             '. Then Share, "Add to Home Screen". ', homeState.phones ? `${homeState.phones} paired.` : '']
+          : 'This PC is not in a home network right now.'),
+        h('div', { class: 'wl-row-of' }, btn('New code (every phone pairs again)', async () => { const r = await api.files.newCode(); if (r.ok) { homeState = r.value; renderSettings(); } }, 'wl-quiet')),
+      ] : null,
+    ] : null,
     h('div', { class: 'ub-section' }, 'Google account'),
-    h('p', { class: 'wl-note' }, google.signedIn
+    api.home ? h('p', { class: 'wl-note' }, 'At home through your PC: these are the PC\'s lists, and the PC does the Google part.') : h('p', { class: 'wl-note' }, google.signedIn
       ? 'Signed in. Reads your subscriptions (Channels) and playlists (Music), changes nothing on YouTube, and keeps your lists in one hidden file in your Google Drive, so every device shows the same.'
       : google.configured ? 'Ready. Sign in to see your channels and playlists, and to have the same lists on every device.'
         : api.desktop ? 'First the client file from your Google Cloud project (README, "Mit Google anmelden"), then sign in.'
           : 'First the client ID of the web client from your Google Cloud project (README, "Auf dem Handy").'),
-    h('div', { class: 'wl-row-of' },
+    api.home ? null : h('div', { class: 'wl-row-of' },
       btn(api.desktop ? (google.configured ? 'Choose another client file' : 'Choose client file') : (google.configured ? 'Change client ID' : 'Enter client ID'), async () => {
         const r = await api.google.chooseClient();
         if (!r.ok) { say(r.error); return; }
@@ -449,8 +498,31 @@ function queueFor(from, startId) {
   const day = dayById(from);
   return day ? day.items.slice(day.items.indexOf(startId)) : [];
 }
+// Tim's own files play in a plain <video> (fileVideo); YouTube's in its player. These few calls cover both.
+const fileVideo = $('filevideo');
+let fileBase = null;   // the PC: { base, key }; at home on the iPhone the bridge makes the address
+async function fileSrc(id) {
+  if (api.fileUrl) return api.fileUrl(id);
+  if (!api.files) return null;   // the web version: the files are on the PC
+  if (!fileBase) { const r = await api.files.base(); if (r.ok) fileBase = r.value; }
+  return fileBase ? `${fileBase.base}${id}?k=${encodeURIComponent(fileBase.key)}` : null;
+}
+const onFile = () => !!playing && L.isFile(playing.id);
+const isRunning = () => onFile() ? !fileVideo.paused : yt?.getPlayerState?.() === YT.PlayerState.PLAYING;
+const pauseNow = () => { if (onFile()) fileVideo.pause(); else if (yt?.pauseVideo) yt.pauseVideo(); };
+const playNow = () => { if (onFile()) fileVideo.play().catch(() => {}); else if (yt?.playVideo) yt.playVideo(); };
+const nowAt = () => onFile() ? fileVideo.currentTime || 0 : yt?.getCurrentTime?.() || 0;
+const length = () => onFile() ? (isFinite(fileVideo.duration) ? fileVideo.duration : 0) : yt?.getDuration?.() || 0;
+const jumpTo = (t) => { if (onFile()) fileVideo.currentTime = Math.max(0, t); else if (yt?.seekTo) yt.seekTo(Math.max(0, t), true); };
+fileVideo.addEventListener('playing', () => { paused = false; renderBar(); });
+fileVideo.addEventListener('pause', () => { if (!fileVideo.ended) { paused = true; renderBar(); } });
+fileVideo.addEventListener('ended', () => ended());
+fileVideo.addEventListener('error', () => { if (onFile() && fileVideo.getAttribute('src')) playError('file'); });
+
 async function play(id, from) {
   if (!L.canPlay(state, id)) { say('This video is locked right now.'); return; }
+  const src = L.isFile(id) ? await fileSrc(id) : null;
+  if (L.isFile(id) && !src) { say('This video is on your PC: watch it there, or on the iPhone at home (Settings on the PC).'); return; }
   playing = { id, from, queue: queueFor(from, id) };
   paused = false; hideCover();
   document.body.classList.toggle('wl-music', from === 'music');
@@ -459,11 +531,19 @@ async function play(id, from) {
   if (from === 'music') { if (api.desktop && !mini && !only) setMini(true); }
   else if (!mini && !only) watch(true);
   render();
+  fileVideo.hidden = !src; $('player').style.visibility = src ? 'hidden' : '';
+  if (src) {
+    if (yt?.stopVideo) yt.stopVideo();
+    fileVideo.src = src; fileVideo.play().catch(() => {});
+    return;
+  }
+  fileVideo.pause(); fileVideo.removeAttribute('src');
   const p = await loadYouTube();
   p.loadVideoById(id);
 }
 function stopPlaying() {
-  if (yt) yt.stopVideo();
+  if (yt?.stopVideo) yt.stopVideo();
+  fileVideo.pause(); fileVideo.removeAttribute('src'); fileVideo.load(); fileVideo.hidden = true; $('player').style.visibility = '';
   playing = null; paused = false; hideCover();
   setOnly(false); setMini(false);
   document.body.classList.remove('wl-music');
@@ -484,16 +564,18 @@ function skip(step) {
   if (id) play(id, playing.from);
   else if (step > 0) finished();
 }
-function stateChange(s) {
+function ended() {   // a video or song ran to its end: watched (a day's), then the next one
   if (!playing) return;
+  if (playing.from !== 'music') { L.markWatched(state, playing.from, playing.id); changed(); }
+  skip(1);
+}
+function stateChange(s) {
+  if (!playing || onFile()) return;
   if (s === YT.PlayerState.PLAYING) { paused = false; hideCover(); }
   // Paused: the picture stays fully visible (text in it readable); a clear layer with one Play button in the middle
   // keeps YouTube's "More videos" from being clicked.
   else if (s === YT.PlayerState.PAUSED) { paused = true; showCover('clear', h('span', { class: 'wl-play', 'aria-label': 'Play' }, 'Play')); }
-  else if (s === YT.PlayerState.ENDED) {
-    if (playing.from !== 'music') { L.markWatched(state, playing.from, playing.id); changed(); }
-    skip(1);
-  }
+  else if (s === YT.PlayerState.ENDED) ended();
   renderBar();
 }
 function finished() {
@@ -510,7 +592,8 @@ function playError(code) {
   const refused = code === 101 || code === 150 || code === 153;
   if (refused) unavailable.add(id);
   showCover(
-    h('p', { class: 'big' }, refused ? 'This video plays only on youtube.com.' : code === 100 ? 'This video is gone (removed or private).' : 'This video could not be played.'),
+    h('p', { class: 'big' }, code === 'file' ? 'This file could not be played here.' : refused ? 'This video plays only on youtube.com.' : code === 100 ? 'This video is gone (removed or private).' : 'This video could not be played.'),
+    code === 'file' ? h('p', { class: 'ag-dim' }, 'The iPhone plays mp4, m4v and mov; mkv and most webm only play on the PC. Or the PC is off, or the file moved.') : null,
     refused ? h('p', { class: 'ag-dim' }, 'Its uploader does not allow other players. YouTube in the browser shows recommendations again.') : null,
     h('div', { class: 'wl-row-of' },
       refused ? btn('Open on YouTube', (e) => { e.stopPropagation(); api.youtube(id); }) : null,
@@ -524,10 +607,10 @@ function showCover(...kids) {
   fill(cover, h('div', {}, kids)); cover.hidden = false;
 }
 function hideCover() { cover.hidden = true; cover.classList.remove('clear'); }
-cover.addEventListener('click', () => { if (paused && yt) yt.playVideo(); });
+cover.addEventListener('click', () => { if (paused) playNow(); });
 function toggle() {
-  if (!yt || !playing) return;
-  if (yt.getPlayerState() === YT.PlayerState.PLAYING) yt.pauseVideo(); else yt.playVideo();
+  if (!playing) return;
+  if (isRunning()) pauseNow(); else playNow();
 }
 
 function setOnly(on) { only = on; document.body.classList.toggle('wl-only', on || mini); api.watching(on || mini); renderBar(); }
@@ -542,7 +625,7 @@ function watch(on) {
 function leaveWatching() {
   const music = playing?.from === 'music';   // music keeps playing; a video pauses
   if (mini) setMini(false);
-  if (!music && yt && playing && yt.getPlayerState?.() === YT.PlayerState.PLAYING) yt.pauseVideo();
+  if (!music && playing && isRunning()) pauseNow();
   setOnly(false);
   if (!menu.isOpen) menu.open();
 }
@@ -581,7 +664,7 @@ const seek = h('input', { type: 'range', min: '0', max: '1', step: '1', value: '
 const clock = h('span', { class: 'mp-clock' }, '0:00');
 let seeking = false;
 seek.addEventListener('input', () => { seeking = true; clock.textContent = `${mmss(seek.value)} / ${mmss(seek.max)}`; });
-seek.addEventListener('change', () => { if (yt?.seekTo) yt.seekTo(Number(seek.value), true); seeking = false; });
+seek.addEventListener('change', () => { jumpTo(Number(seek.value)); seeking = false; });
 const mmss = (t) => { t = Math.max(0, Math.round(Number(t) || 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 function renderMusicPanel() {
   if (!playing || playing.from !== 'music') { fill(mp); return; }
@@ -597,8 +680,8 @@ function renderMusicPanel() {
     next && next !== playing.id ? h('div', { class: 'mp-next', title: title(next) }, 'Next: ' + title(next)) : null);
 }
 setInterval(() => {   // the bar and the clock follow the song
-  if (!playing || playing.from !== 'music' || !yt?.getDuration || seeking) return;
-  const dur = yt.getDuration() || 0, cur = yt.getCurrentTime() || 0;
+  if (!playing || playing.from !== 'music' || seeking) return;
+  const dur = length(), cur = nowAt();
   seek.max = String(Math.max(1, Math.floor(dur))); seek.value = String(Math.floor(cur));
   clock.textContent = `${mmss(cur)} / ${mmss(dur)}`;
 }, 500);
@@ -640,7 +723,7 @@ addEventListener('keydown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (!playing || (e.target.closest && e.target.closest('input, textarea, select, button'))) return;
   if (e.key === ' ') { e.preventDefault(); toggle(); }
-  else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && yt?.getCurrentTime) { e.preventDefault(); yt.seekTo(Math.max(0, yt.getCurrentTime() + (e.key === 'ArrowLeft' ? -5 : 5)), true); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); jumpTo(nowAt() + (e.key === 'ArrowLeft' ? -5 : 5)); }
   else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); if (!only) watch(true); api.fullscreen(); }
   else if (e.key === 'F11' && !api.desktop) { e.preventDefault(); api.fullscreen(); }
 });
@@ -660,6 +743,8 @@ const today = openDay();
 if (today && today.items.length > today.watched.length) say(`${dayLabel(today)} is open: ${today.items.length - today.watched.length} to watch.`);
 fetchInfo(Object.keys(state.videos).filter((id) => !state.videos[id].title));
 await pull();   // the lists from the other devices first
+await lookAtFiles();
+setInterval(() => lookAtFiles(), 5 * 60 * 1000);
 // The channels: now if the last look is older than 3 hours, then every 3 hours (while the app is open).
 if (google.signedIn && !(Date.now() - Date.parse(state.lastCheck) < CHECK_EVERY)) checkChannels();
 setInterval(() => checkChannels(), CHECK_EVERY);

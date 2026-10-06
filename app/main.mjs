@@ -8,8 +8,10 @@ import { promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cleanState, emptyState, watchUrl } from './lists.mjs';
+import crypto from 'node:crypto';
+import { cleanState, emptyState, watchUrl, newer } from './lists.mjs';
 import * as google from './google.mjs';
+import { scanFolder, sendVideo, startHome, homeAddresses, HOME_PORT } from './home.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -25,6 +27,7 @@ const FILES = {
   '/archon_ui.css': path.join(HERE, 'kit', 'archon_ui.css'),
   '/archon_ui.js': path.join(HERE, 'kit', 'archon_ui.js'),
   '/fraktur.ttf': path.join(HERE, 'kit', 'UnifrakturMaguntia.ttf'),
+  '/lan-api.mjs': path.join(HERE, 'lan-api.mjs'),   // the iPhone's bridge at home (only the home server's page uses it)
 };
 const TYPES = { '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript', '.js': 'text/javascript', '.css': 'text/css', '.ttf': 'font/ttf',
   '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
@@ -66,11 +69,65 @@ async function writeJson(file, value) {   // written whole to a side file first,
   await fs.rename(file + '.tmp', file);
 }
 
+// ---- Tim's own videos and the home server (home.mjs); their settings in pc.json, on this PC only ----
+const pcFile = () => path.join(app.getPath('userData'), 'pc.json');
+let pc = null, files = new Map(), home = null;   // files: id -> full path, from the last look at the folder
+const LOCAL_KEY = crypto.randomBytes(24).toString('base64url');   // this run's key for the page's own videos
+async function pcSettings() {
+  if (pc) return pc;
+  pc = { folder: path.join(app.getPath('videos'), 'Deine Röhre'), home: false, code: '', keys: [], ...(await readJson(pcFile(), {})) };
+  if (!/^\d{6}$/.test(pc.code)) pc.code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  return pc;
+}
+const savePc = () => writeJson(pcFile(), pc);
+async function lookAtFolder() {
+  const found = await scanFolder((await pcSettings()).folder);
+  if (!found) return null;   // no folder (yet): nothing changes in the lists
+  files = new Map(found.map((f) => [f.id, f.abs]));
+  return found.map(({ id, path: p, name, size }) => ({ id, path: p, name, size }));
+}
+async function fileFor(id) {
+  if (!files.has(id)) await lookAtFolder();
+  return files.get(id) || null;
+}
+async function homeInfo() {
+  const p = await pcSettings();
+  return { folder: p.folder, home: !!home, addresses: homeAddresses().map((a) => `http://${a}:${HOME_PORT}`), code: p.code, phones: p.keys.length };
+}
+async function setHome(on) {
+  const p = await pcSettings();
+  if (on && !home) {
+    home = await startHome({
+      pages: FILES, types: TYPES, code: () => p.code, keys: () => p.keys,
+      addKey: async (k) => { p.keys.push(k); await savePc(); },
+      load: async () => cleanState(await readJson(dataFile(), null)),
+      // A phone's change: kept when it is newer than what is on the disk, and handed to the window at once.
+      save: async (raw) => {
+        const incoming = cleanState(raw), here = cleanState(await readJson(dataFile(), null));
+        if (newer(here, incoming) !== 'remote') return false;
+        await writeJson(dataFile(), incoming);
+        win?.webContents.send('wl:remote', incoming);
+        return true;
+      },
+      info: (ids) => videoInfo(ids.filter((id) => /^[A-Za-z0-9_-]{11}$/.test(id))),
+      fileFor,
+    });
+  } else if (!on && home) { await home.stop(); home = null; }
+  p.home = !!on; await savePc();
+  return homeInfo();
+}
+
 async function startServer() {
   const emblem = await findEmblem();
   if (emblem) FILES['/emblem'] = emblem;   // no emblem: the page shows the words Deine Röhre in Fraktur instead
   const server = http.createServer(async (req, res) => {
-    const file = FILES[new URL(req.url, 'http://x').pathname];
+    const where = new URL(req.url, 'http://x');
+    if (where.pathname.startsWith('/file/')) {   // one of Tim's videos, for the page's own player (this run's key)
+      const abs = where.searchParams.get('k') === LOCAL_KEY && await fileFor(where.pathname.slice(6));
+      if (abs) await sendVideo(req, res, abs); else res.writeHead(404).end('Not found');
+      return;
+    }
+    const file = FILES[where.pathname];
     if (!file || req.method !== 'GET') { res.writeHead(404).end('Not found'); return; }
     try { res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(await fs.readFile(file)); }
     catch { res.writeHead(404).end('Not found'); }
@@ -95,7 +152,7 @@ async function videoInfo(ids) {
   return out;
 }
 
-let win = null, normalBounds = null, mini = false, onTop = false, watching = false;   // watching: the video fills the window
+let pageBase = '', win = null, normalBounds = null, mini = false, onTop = false, watching = false;   // watching: the video fills the window
 
 // A remembered place is used only while it still lies on a connected screen.
 function onScreen(b) {
@@ -195,6 +252,21 @@ ipcMain.handle('g:playlist', answer((id) => google.playlistVideos(String(id || '
 ipcMain.handle('g:categories', answer((ids) => google.categories(Array.isArray(ids) ? ids.map(String) : [])));
 ipcMain.handle('g:driveLoad', answer(async () => { const raw = await google.driveLoad(); return raw ? cleanState(raw) : null; }));
 ipcMain.handle('g:driveSave', answer((state) => google.driveSave(cleanState(state))));
+// Tim's videos and the iPhone at home
+ipcMain.handle('f:info', answer(() => homeInfo()));
+ipcMain.handle('f:scan', answer(() => lookAtFolder()));
+ipcMain.handle('f:choose', answer(async () => {
+  const pick = await dialog.showOpenDialog(win, { title: 'Your video folder', properties: ['openDirectory', 'createDirectory'] });
+  if (pick.canceled || !pick.filePaths[0]) return null;
+  (await pcSettings()).folder = pick.filePaths[0]; await savePc();
+  return homeInfo();
+}));
+ipcMain.handle('f:open', answer(async () => { const p = await pcSettings(); await fs.mkdir(p.folder, { recursive: true }); await shell.openPath(p.folder); return true; }));
+ipcMain.handle('f:base', answer(() => ({ base: `${pageBase}file/`, key: LOCAL_KEY })));
+ipcMain.handle('h:set', answer((on) => setHome(!!on)));
+ipcMain.handle('h:newCode', answer(async () => {   // a new code, and every phone has to pair again
+  const p = await pcSettings(); p.code = String(crypto.randomInt(0, 1000000)).padStart(6, '0'); p.keys = []; await savePc(); return homeInfo();
+}));
 ipcMain.on('wl:youtube', (_e, id) => { if (/^[A-Za-z0-9_-]{11}$/.test(id)) shell.openExternal(watchUrl(id)); });
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
@@ -208,5 +280,7 @@ app.whenReady().then(async () => {
   for (const [key, action] of [['MediaPlayPause', 'toggle'], ['MediaNextTrack', 'next'], ['MediaPreviousTrack', 'previous']]) {
     try { globalShortcut.register(key, () => win?.webContents.send('wl:key', action)); } catch { /* taken: fine */ }
   }
-  await createWindow(await startServer());
+  pageBase = await startServer();
+  await createWindow(pageBase);
+  if ((await pcSettings()).home) setHome(true).catch(() => { pc.home = false; });   // on again, as Tim left it
 });
