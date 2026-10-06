@@ -8,6 +8,7 @@
 //                                                     newest first; nothing in here plays either
 //   seen:   [id]                                      every upload ever offered in the feed, so a removed one stays away
 //   lastCheck: ISO time of the last look at the channels
+//   updated: ISO time of the last change on any device (the PC, the phone, the tablet share the lists through Drive)
 //   days:   [{ id, name, date, from, to, items: [id], watched: [id] }]
 //           a day list plays only on its date between from and to ("HH:MM"; empty = the whole day)
 //   music:  [id]                                      plays any time, in order or shuffled, in a loop
@@ -48,7 +49,7 @@ export const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 export const thumbUrl = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 
 export function emptyState() {
-  return { videos: {}, inbox: [], feed: [], seen: [], lastCheck: '', days: [], music: [], settings: { perDay: DEFAULT_PER_DAY, onTop: false } };
+  return { updated: '', videos: {}, inbox: [], feed: [], seen: [], lastCheck: '', days: [], music: [], settings: { perDay: DEFAULT_PER_DAY, onTop: false } };
 }
 
 // A saved file from any version, made whole (missing parts filled in, unknown ids dropped).
@@ -63,6 +64,7 @@ export function cleanState(raw) {
   s.feed = ids(r.feed);
   s.seen = [...new Set((Array.isArray(r.seen) ? r.seen : []).filter((id) => ID.test(id)))].slice(-SEEN_MAX);
   s.lastCheck = isNaN(Date.parse(r.lastCheck)) ? '' : String(r.lastCheck);
+  s.updated = isNaN(Date.parse(r.updated)) ? '' : String(r.updated);
   s.days = (Array.isArray(r.days) ? r.days : []).filter((d) => d && d.id && /^\d{4}-\d{2}-\d{2}$/.test(d.date)).map((d) => ({
     id: String(d.id), name: String(d.name || ''), date: d.date, from: time(d.from), to: time(d.to),
     items: ids(d.items), watched: ids(d.watched),
@@ -72,6 +74,29 @@ export function cleanState(raw) {
   s.settings.onTop = !!set.onTop;
   return s;
 }
+// Which copy of the lists to keep when two devices meet: the one changed last (a copy never changed counts as oldest).
+// Both are whole states; nothing is merged, so a change made on one device while another was offline and changed too
+// is lost on the one that changed earlier.
+export function newer(local, remote) {
+  if (!remote) return 'local';
+  const l = Date.parse(local?.updated) || 0, r = Date.parse(remote.updated) || 0;
+  return r > l ? 'remote' : 'local';
+}
+
+// A device joining the shared lists for the first time: the shared lists win, and the videos only this device had
+// are added to their inbox (so a link pasted on the phone before signing in is not lost, nor are the PC's lists).
+export function join(local, remote, now = new Date()) {
+  const s = cleanState(remote), mine = cleanState(local);
+  for (const id of Object.keys(mine.videos)) {
+    if (s.videos[id]) continue;
+    s.videos[id] = mine.videos[id];
+    s.inbox.push(id);
+  }
+  s.seen = [...new Set([...s.seen, ...mine.seen])].slice(-SEEN_MAX);
+  s.updated = now.toISOString();
+  return s;
+}
+
 const time = (t) => (/^\d{2}:\d{2}$/.test(t || '') ? t : '');
 
 // Local date "YYYY-MM-DD" of a Date.

@@ -2,9 +2,10 @@
 <html lang="en" data-theme="archon">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Only this app's own files, YouTube's player script and frame, and YouTube's thumbnails. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube-nocookie.com https://www.youtube.com; img-src 'self' https://i.ytimg.com data:; font-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Only this app's own files, YouTube's player and thumbnails, and (the web version) Google's sign-in, YouTube's and
+     Drive's addresses for the lists. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com https://accounts.google.com; frame-src https://www.youtube-nocookie.com https://www.youtube.com https://accounts.google.com; img-src 'self' https://i.ytimg.com data:; font-src 'self'; style-src 'self' 'unsafe-inline' https://accounts.google.com; connect-src 'self' https://www.googleapis.com https://www.youtube.com https://accounts.google.com; manifest-src 'self'; worker-src 'self'">
 <title>Deine Röhre</title>
 <link rel="stylesheet" href="ui_base.css">
 <link rel="stylesheet" href="archon_ui.css">

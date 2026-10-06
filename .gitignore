@@ -13,3 +13,6 @@ brand/*.webp
 # Google client files are Tim's access (README, "Mit Google anmelden")
 client_secret*.json
 google-client.json
+
+# The web version, put together by tools/build-site.mjs
+site/

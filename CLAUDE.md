@@ -12,6 +12,10 @@ moved here.
   blocking, no audio without the picture.
 - PowerShell steps for Tim: every set starts with its own box
   `cd C:\Users\Tim\Documents\deine-roehre`; one command per box.
-- Google sign-in (app/google.mjs): scope youtube.readonly only; the client
-  file and token live in %APPDATA%\deine-roehre, never in Git.
+- Google (app/google-api.mjs, shared by PC and web): scopes youtube.readonly
+  and drive.appdata (one hidden lists.json, the lists shared between devices)
+  only. On the PC the client file and token live in %APPDATA%\deine-roehre,
+  never in Git; the web client id (not a secret) may go in web/config.json.
+- Web version: web/ + tools/build-site.mjs, published by GitHub Pages from main.
+  Test the page at phone size (iPhone) before pushing.
 - Before pushing: `npm test`.

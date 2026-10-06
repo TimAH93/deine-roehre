@@ -50,13 +50,16 @@ Beim ersten Start lädt es Electron (etwa 100 MB, nur einmal).
 
 ## Mit Google anmelden (einmal einrichten, etwa 15 Minuten)
 
-Die App liest dein Konto nur (Abos und Playlists) und ändert nichts. Dafür
-braucht sie einen eigenen, kostenlosen Zugang bei Google:
+Die App liest dein YouTube-Konto nur (Abos und Playlists) und ändert dort nichts.
+Deine Listen legt sie in eine einzige versteckte Datei in deinem Google Drive,
+die nur Deine Röhre sieht: So haben PC, iPhone und Tablet dieselben Listen.
+Dafür braucht sie einen eigenen, kostenlosen Zugang bei Google:
 
 1. Auf https://console.cloud.google.com oben auf die Projektauswahl, dann
    **Neues Projekt**, Name `Deine Roehre`, **Erstellen**. Das Projekt auswählen.
 2. **APIs & Dienste**, **Bibliothek**, nach `YouTube Data API v3` suchen,
-   **Aktivieren**.
+   **Aktivieren**. Genauso `Google Drive API` aktivieren (für die gemeinsamen
+   Listen auf PC und Handy).
 3. **Google Auth Platform** (früher „OAuth-Zustimmungsbildschirm“),
    **Jetzt starten**: App-Name `Deine Röhre`, deine E-Mail, Zielgruppe
    **Extern**, Kontakt-E-Mail, zustimmen, **Erstellen**.
@@ -76,6 +79,46 @@ die Anmeldung liegt verschlüsselt (nur dein Windows-Konto kann sie lesen) in
 `google-token.bin` daneben. **Sign out** löscht sie und meldet die App bei
 Google ab. YouTube erlaubt der App etwa 10.000 Abfragen am Tag; ein Blick auf
 100 Kanäle braucht etwa 100.
+
+## Auf dem Handy (iPhone, Android-Tablet)
+
+Dieselbe App als Webseite: https://timah93.github.io/deine-roehre/ (sobald sie
+veröffentlicht ist, siehe unten). Dieselben Listen wie am PC, wenn du dich mit
+demselben Google-Konto anmeldest. Nicht auf dem Handy: Mini-Player, „Fenster im
+Vordergrund“, Medientasten.
+
+**Einmal einrichten:**
+
+1. Tim übernimmt den Stand in `main` (oder sagt Claude Bescheid).
+2. Auf GitHub im Repository: **Settings**, **Pages**, unter „Build and
+   deployment“ bei **Source** „GitHub Actions“ wählen. Danach veröffentlicht
+   jede Änderung in `main` die Seite von selbst (Reiter **Actions**,
+   „Web version“).
+3. In Google Cloud: **Clients**, **Client erstellen**, Anwendungstyp
+   **Webanwendung**, bei **Autorisierte JavaScript-Quellen**
+   `https://timah93.github.io` eintragen, **Erstellen**. Die **Client-ID**
+   (endet auf `.apps.googleusercontent.com`) Claude schicken: sie kommt in
+   `web/config.json` (sie ist kein Geheimnis). Bis dahin kannst du sie in der
+   App unter Settings, **Enter client ID** eintragen.
+4. Auf dem **iPhone**: die Adresse in Safari öffnen, **Teilen**, **Zum
+   Home-Bildschirm**. Auf dem **Android-Tablet**: in Chrome öffnen, Menü (⋮),
+   **App installieren** (oder „Zum Startbildschirm hinzufügen“).
+5. In der App: **Settings**, **Sign in with Google**.
+
+**Was anders ist als am PC:**
+- Google meldet eine Webseite jeweils für eine Stunde an; danach fragt die
+  App eventuell noch einmal nach (ein Tipp auf „Sign in with Google“).
+- Auf dem iPhone stoppt Musik, wenn der Bildschirm ausgeht (das macht iOS mit
+  jeder Webseite). Auf dem Android-Tablet läuft sie oft weiter.
+- Werbung: Die App blockiert keine Werbung (YouTubes Regeln). Werbefrei geht
+  es mit YouTube Premium, wenn du im selben Browser bei YouTube angemeldet bist.
+
+**Gemeinsame Listen:** Jede Änderung geht nach etwa 2 Sekunden in die Datei in
+deinem Drive; jedes Gerät schaut beim Öffnen und alle 2 Minuten nach. Es gilt
+die zuletzt geänderte Fassung. Änderst du auf zwei Geräten gleichzeitig ohne
+Internet, gewinnt die spätere Änderung, die frühere geht verloren. Meldet sich
+ein Gerät zum ersten Mal an, übernimmt es die gemeinsamen Listen und legt nur
+seine eigenen zusätzlichen Videos in die Inbox.
 
 ## Look
 
@@ -103,9 +146,13 @@ Player; dann bietet die App „Open on YouTube“ an.
 
 ## Für Entwickler
 
-- `app/`: Electron-Hauptprogramm (`main.mjs`), Google-Anmeldung und
-  YouTube-Abfragen (`google.mjs`, nur lesen), Seite (`index.html`, `app.mjs`,
-  `app.css`), Regeln (`lists.mjs`).
+- `app/`: Electron-Hauptprogramm (`main.mjs`), Google-Anmeldung am PC
+  (`google.mjs`), die Abfragen an YouTube und Drive (`google-api.mjs`, von PC
+  und Web geteilt), Seite (`index.html`, `app.mjs`, `app.css`), Regeln
+  (`lists.mjs`).
+- `web/`: was nur die Webseite braucht (`web-api.mjs` statt Electron,
+  Manifest, Symbole, `sw.js`). `npm run site` baut `site/`; GitHub Pages
+  veröffentlicht es (`.github/workflows/pages.yml`).
 - `app/kit/`: UI base und Archon-Kit, kopiert aus `TimAH93/eisenfaust`
   (`kit/README.md`).
 - Tests: `npm test` (Node 22.12 oder neuer).

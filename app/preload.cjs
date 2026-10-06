@@ -1,6 +1,7 @@
 // The bridge between Deine Röhre's page and its main program (main.mjs). The page gets these calls and nothing else.
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('roehre', {
+  desktop: true,                                                // the PC app: window in front, mini player, media keys
   load: () => ipcRenderer.invoke('wl:load'),                    // the saved lists (lists.json)
   save: (state) => ipcRenderer.invoke('wl:save', state),        // write them back
   info: (ids) => ipcRenderer.invoke('wl:info', ids),            // { id: { ok, title, channel } } from YouTube
@@ -17,5 +18,7 @@ contextBridge.exposeInMainWorld('roehre', {
     feed: (since) => ipcRenderer.invoke('g:feed', since),       // new uploads of the subscribed channels since then
     playlists: () => ipcRenderer.invoke('g:playlists'),         // [{ id, title, count }], liked videos first
     playlist: (id) => ipcRenderer.invoke('g:playlist', id),     // the videos in one playlist
+    driveLoad: () => ipcRenderer.invoke('g:driveLoad'),         // the shared lists from Drive (or null)
+    driveSave: (state) => ipcRenderer.invoke('g:driveSave', state),
   },
 });

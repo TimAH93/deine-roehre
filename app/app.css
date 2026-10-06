@@ -122,9 +122,17 @@ body.wl-mini .wl-bar .notmini { display: none; }
   opacity: 0; pointer-events: none; transition: opacity 160ms var(--ag-ease); max-width: calc(100vw - 32px); }
 .wl-toast.show { opacity: 1; }
 
-/* a narrow app window: rows stack, the day column goes above */
+/* a narrow app window or a phone: rows stack, the day column goes above; a window fills the width, the player sits
+   at the bottom (places from the PC do not apply here) */
 @media (max-width: 640px) {
-  .wl-list, #w-settings { left: 8px; top: 96px; width: calc(100vw - 16px); height: calc(100vh - 104px); }
+  .wl-home .ag-emblem { width: 56px; height: 56px; }
+  .wl-home .wl-word { font-size: 21px; padding: 4px 12px 6px; }
+  .wl-list, #w-settings { left: 6px !important; top: 72px !important; width: calc(100vw - 12px) !important; height: calc(100dvh - 78px - env(safe-area-inset-bottom)) !important; }
+  #w-player:not([hidden]) { left: 0 !important; right: 0 !important; top: auto !important; bottom: 0 !important; width: 100vw !important;
+    height: min(calc(56.25vw + 96px), 70dvh) !important; padding-bottom: env(safe-area-inset-bottom); }
+  .ub-window .ub-resize { display: none; }
+  .ag-window input, .ag-window select, .ag-window button { font-size: 16px; }   /* iPhone zooms in on smaller fields */
+  .wl-bar button { font-size: 14px; padding: 5px 10px; }
   .ag-split.ub-body { grid-template-columns: minmax(0, 1fr); }
   .wl-r { grid-template-columns: 80px minmax(0, 1fr); }
   .wl-r img { width: 80px; }

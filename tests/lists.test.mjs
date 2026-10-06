@@ -132,3 +132,29 @@ test('playlist into Music: new ones added, inbox and feed ones move, planned one
   assert.equal(L.placeOf(s, C), day.id);
   assert.equal(s.videos[D].title, 'Song');
 });
+
+test('sharing between devices: the copy changed last wins, a missing or never-changed one loses', () => {
+  const a = L.emptyState(), b = L.emptyState();
+  assert.equal(L.newer(a, null), 'local');
+  assert.equal(L.newer(a, b), 'local');                        // neither changed: keep what is here
+  b.updated = '2026-10-06T12:00:00.000Z';
+  assert.equal(L.newer(a, b), 'remote');
+  a.updated = '2026-10-06T12:00:01.000Z';
+  assert.equal(L.newer(a, b), 'local');
+  assert.equal(L.cleanState({ updated: 'soon' }).updated, '');
+  assert.equal(L.cleanState(b).updated, b.updated);
+});
+
+test('a device joining: the shared lists win, its own extra videos go to their inbox', () => {
+  const now = at('2026-10-06T10:00');
+  const pc = L.emptyState(), phone = L.emptyState();
+  L.addToInbox(pc, [A, B], {}, now);
+  L.moveTo(pc, B, 'music', now);
+  pc.updated = '2026-10-05T10:00:00.000Z';
+  L.addToInbox(phone, [B, C], {}, now);
+  phone.updated = now.toISOString();          // newer, but it must not wipe the PC's lists
+  const s = L.join(phone, pc, now);
+  assert.deepEqual(s.inbox, [A, C]);
+  assert.deepEqual(s.music, [B]);
+  assert.equal(s.updated, now.toISOString());
+});

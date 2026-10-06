@@ -1,5 +1,6 @@
-// Deine Röhre's Google sign-in and the YouTube calls it makes (README.md, "Mit Google anmelden"). Read only: the scope
-// is youtube.readonly; nothing on Tim's account is ever changed.
+// Deine Röhre's Google sign-in on the PC (README.md, "Mit Google anmelden"); the calls themselves are google-api.mjs,
+// shared with the web app. Permissions: youtube.readonly (nothing on YouTube is ever changed) and drive.appdata (one
+// hidden file in Drive, the shared lists).
 //
 // Sign-in is Google's flow for desktop programs: the browser opens Google's own page (Google does not allow sign-in
 // inside an app's window), Google sends the answer back to a one-time address on 127.0.0.1, PKCE proves it is ours.
@@ -11,10 +12,9 @@ import { promises as fs } from 'node:fs';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import { makeApi, SCOPES } from './google-api.mjs';
 
-const SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
-const API = 'https://www.googleapis.com/youtube/v3/';
-const ID = /^[A-Za-z0-9_-]{11}$/;
+const SCOPE = SCOPES.join(' ');
 const clientFile = () => path.join(app.getPath('userData'), 'google-client.json');
 const tokenFile = () => path.join(app.getPath('userData'), 'google-token.bin');
 
@@ -116,72 +116,5 @@ async function token() {
     return access.token;
   } catch (e) { if (e.signedOut) await fs.rm(tokenFile(), { force: true }); throw e; }
 }
-async function get(what, params) {
-  const url = new URL(API + what);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const r = await fetch(url, { headers: { authorization: 'Bearer ' + await token() }, signal: AbortSignal.timeout(15000) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const reason = j.error?.errors?.[0]?.reason || '';
-    const stop = (text) => Object.assign(new Error(text), { stop: true });   // ends a whole look, not just one channel
-    if (reason === 'quotaExceeded') throw stop('YouTube\'s daily limit for this app is used up. It resets at 9:00 (Google\'s midnight).');
-    if (reason === 'accessNotConfigured' || reason === 'SERVICE_DISABLED') throw stop('Switch on "YouTube Data API v3" in the Google Cloud project (README).');
-    if (r.status === 401) throw Object.assign(stop('The Google sign-in has run out. Sign in again (Settings).'), { signedOut: true });
-    if (r.status === 404 && what === 'playlistItems') return { items: [] };   // a channel without uploads, or a gone playlist
-    throw new Error('YouTube: ' + (j.error?.message || r.status));
-  }
-  return j;
-}
-// Every page of a list, up to `max` items.
-async function all(what, params, max) {
-  const items = [];
-  let pageToken = '';
-  do {
-    const j = await get(what, { ...params, maxResults: '50', ...(pageToken ? { pageToken } : {}) });
-    items.push(...(j.items || []));
-    pageToken = j.nextPageToken || '';
-  } while (pageToken && items.length < max);
-  return items.slice(0, max);
-}
-const video = (sn, id) => ({ id, title: String(sn?.title || ''), channel: String(sn?.videoOwnerChannelTitle || sn?.channelTitle || ''), published: String(sn?.publishedAt || '') });
-const usable = (v) => ID.test(v.id) && v.title !== 'Private video' && v.title !== 'Deleted video';
-
-// The channels Tim subscribes to: [{ id, title }].
-export async function subscriptions() {
-  const items = await all('subscriptions', { mine: 'true', part: 'snippet', order: 'alphabetical' }, 1000);
-  return items.map((s) => ({ id: s.snippet?.resourceId?.channelId, title: String(s.snippet?.title || '') })).filter((c) => /^UC[\w-]{22}$/.test(c.id || ''));
-}
-// The newest uploads of these channels since a moment, at most `per` each. A channel's uploads list is its id with
-// UU in place of UC (one call per channel; YouTube's daily allowance is 10,000 calls).
-export async function uploads(channels, since, per = 5) {
-  const after = Date.parse(since) || 0, out = [];
-  for (let i = 0; i < channels.length; i += 8) {   // eight at a time
-    await Promise.all(channels.slice(i, i + 8).map(async (c) => {
-      let j;
-      try { j = await get('playlistItems', { playlistId: 'UU' + c.id.slice(2), part: 'snippet,contentDetails', maxResults: String(per) }); }
-      catch (e) { if (e.stop || e.signedOut) throw e; return; }   // one channel that cannot be read is skipped
-      for (const it of j.items || []) {
-        const v = video(it.snippet, it.contentDetails?.videoId);
-        v.published = String(it.contentDetails?.videoPublishedAt || v.published);
-        if (usable(v) && Date.parse(v.published) > after) out.push({ ...v, channel: v.channel || c.title });
-      }
-    }));
-  }
-  return out;
-}
-// Tim's own playlists and his liked videos: [{ id, title, count }].
-export async function playlists() {
-  const mine = await get('channels', { mine: 'true', part: 'contentDetails' });
-  const likes = mine.items?.[0]?.contentDetails?.relatedPlaylists?.likes;
-  const lists = await all('playlists', { mine: 'true', part: 'snippet,contentDetails' }, 500);
-  return [
-    ...(likes ? [{ id: likes, title: 'Liked videos', count: null }] : []),
-    ...lists.map((p) => ({ id: p.id, title: String(p.snippet?.title || ''), count: p.contentDetails?.itemCount ?? null })),
-  ];
-}
-// The videos in one playlist (up to 500), in its order.
-export async function playlistVideos(id) {
-  if (!/^[\w-]{2,64}$/.test(id)) return [];
-  const items = await all('playlistItems', { playlistId: id, part: 'snippet,contentDetails' }, 500);
-  return items.map((it) => video(it.snippet, it.contentDetails?.videoId)).filter(usable);
-}
+const api = makeApi(token);
+export const { subscriptions, uploads, playlists, playlistVideos, driveLoad, driveSave } = api;

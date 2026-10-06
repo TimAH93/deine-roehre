@@ -7,7 +7,9 @@
 // never shows.
 import * as L from './lists.mjs';
 
-const api = window.roehre;
+// The PC app's bridge (preload.cjs), or, in a browser (the iPhone, the tablet), the web version of it (web-api.mjs).
+const api = window.roehre || (await import('./web-api.mjs')).api;
+if (!api.desktop) document.body.classList.add('wl-web');
 let google = { configured: false, signedIn: false };   // the Google sign-in (Settings), from the main program
 let checking = false, playlists = null;               // a look at the channels is running; Tim's playlists once loaded
 const $ = (id) => document.getElementById(id);
@@ -43,12 +45,54 @@ function say(text) {
   toast.textContent = text; toast.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
 }
-let saveTimer = null;
+let saveTimer = null, shareTimer = null;
 function changed() {
+  state.updated = new Date().toISOString();
   render();
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => api.save(state), 300);
+  saveTimer = setTimeout(() => { saveTimer = null; api.save(state); }, 300);
+  clearTimeout(shareTimer);
+  shareTimer = setTimeout(() => { shareTimer = null; share(); }, 2000);   // to Drive, a moment after the last change
 }
+
+// ---- the same lists on every device: one file in Google Drive (google-api.mjs) ----
+// A device that has never shared joins (lists.mjs join); after that the copy changed last wins (lists.mjs newer).
+const JOINED = 'roehre:joined';
+const joined = () => { try { return localStorage.getItem(JOINED) === '1'; } catch { return false; } };
+const setJoined = () => { try { localStorage.setItem(JOINED, '1'); } catch { /* private mode: joins again next time */ } };
+let syncing = false, syncProblem = '';
+async function share() {
+  if (!google.signedIn || !joined()) return;
+  const r = await api.google.driveSave(state);
+  if (!r.ok) syncNote(r);
+  else syncProblem = '';
+}
+function syncNote(r) {
+  if (r.error !== syncProblem) say(r.error);   // each problem said once
+  syncProblem = r.error;
+  if (r.signedOut) refreshGoogle().then(render);
+}
+async function pull() {
+  if (!google.signedIn || syncing || saveTimer || shareTimer) return;   // a change of ours still on its way: it wins
+  syncing = true;
+  try {
+    const r = await api.google.driveLoad();
+    if (!r.ok) { syncNote(r); return; }
+    syncProblem = '';
+    if (!joined()) {
+      if (r.value) { state = L.join(state, r.value); say('Your lists are now the same as on your other devices.'); }
+      setJoined();
+      api.save(state); render();
+      await api.google.driveSave(state);
+      return;
+    }
+    if (L.newer(state, r.value) === 'remote') { state = L.cleanState(r.value); api.save(state); render(); }
+    else if (!r.value || r.value.updated !== state.updated) await api.google.driveSave(state);
+  } finally { syncing = false; }
+}
+addEventListener('focus', () => pull());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
+setInterval(() => pull(), 2 * 60 * 1000);
 const title = (id) => state.videos[id]?.title || 'Video ' + id;
 const dayById = (id) => state.days.find((d) => d.id === id);
 const dayLabel = (d) => d.name || L.dayName(d.date);
@@ -268,19 +312,20 @@ function renderSettings() {
     h('label', {}, 'Videos per day',
       h('input', { type: 'number', min: '1', max: '20', value: String(state.settings.perDay),
         onchange: (e) => { state.settings = L.cleanState({ ...state, settings: { ...state.settings, perDay: e.target.value } }).settings; changed(); } })),
-    h('label', {}, 'Window stays in front of other programs',
+    !api.desktop ? null : h('label', {}, 'Window stays in front of other programs',
       btn(state.settings.onTop ? 'On' : 'Off', () => { state.settings.onTop = !state.settings.onTop; api.onTop(state.settings.onTop); changed(); }, '', { 'aria-pressed': String(state.settings.onTop) })),
     h('label', {}, 'Window places and sizes', btn('Reset', () => { UB.reset(); say('Every window is back in its first place.'); })),
     h('div', { class: 'ub-section' }, 'Google account'),
     h('p', { class: 'wl-note' }, google.signedIn
-      ? 'Signed in, read only: your subscriptions (Channels) and playlists (Music). Nothing on your account is changed.'
-      : google.configured ? 'The client file is in. Sign in to see your channels and playlists.'
-        : 'First the client file from your Google Cloud project (README, "Mit Google anmelden"), then sign in.'),
+      ? 'Signed in. Reads your subscriptions (Channels) and playlists (Music), changes nothing on YouTube, and keeps your lists in one hidden file in your Google Drive, so every device shows the same.'
+      : google.configured ? 'Ready. Sign in to see your channels and playlists, and to have the same lists on every device.'
+        : api.desktop ? 'First the client file from your Google Cloud project (README, "Mit Google anmelden"), then sign in.'
+          : 'First the client ID of the web client from your Google Cloud project (README, "Auf dem Handy").'),
     h('div', { class: 'wl-row-of' },
-      btn(google.configured ? 'Choose another client file' : 'Choose client file', async () => {
+      btn(api.desktop ? (google.configured ? 'Choose another client file' : 'Choose client file') : (google.configured ? 'Change client ID' : 'Enter client ID'), async () => {
         const r = await api.google.chooseClient();
         if (!r.ok) { say(r.error); return; }
-        if (r.value) { say('Client file taken.'); await refreshGoogle(); render(); }
+        if (r.value) { say(api.desktop ? 'Client file taken.' : 'Client ID taken.'); await refreshGoogle(); render(); }
       }, google.configured ? 'wl-quiet' : 'wl-go'),
       google.configured && !google.signedIn ? btn('Sign in with Google', async () => {
         say('Your browser opens Google\'s sign-in page…');
@@ -288,6 +333,7 @@ function renderSettings() {
         if (!r.ok) { say(r.error); return; }
         await refreshGoogle(); render();
         say('Signed in.');
+        await pull();
         checkChannels();
       }, 'wl-go') : null,
       google.signedIn ? btn('Sign out', async () => { await api.google.signOut(); await refreshGoogle(); render(); say('Signed out.'); }) : null)));
@@ -439,7 +485,7 @@ function renderBar() {
     nextId(1) ? btn('Next', () => skip(1)) : null,
     isMusic ? btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; playing.queue = L.musicOrder(state.music, shuffle, playing.id); render(); }, 'wide notmini', { 'aria-pressed': String(shuffle) }) : null,
     mini ? null : btn(only ? 'Show all' : 'Video only', () => setOnly(!only)),
-    btn(mini ? 'Bigger' : 'Mini', () => setMini(!mini)));
+    api.desktop ? btn(mini ? 'Bigger' : 'Mini', () => setMini(!mini)) : null);
 }
 
 // The time windows move on by themselves: the days' "opens in ..." lines, and a day that closes while open.
@@ -471,6 +517,7 @@ menu.open();
 const today = openDay();
 if (today) say(`${dayLabel(today)} is open: ${today.items.length - today.watched.length} to watch.`);
 fetchInfo(Object.keys(state.videos).filter((id) => !state.videos[id].title));
+await pull();   // the lists from the other devices first
 // The channels: now if the last look is older than 3 hours, then every 3 hours (while the app is open).
 if (google.signedIn && !(Date.now() - Date.parse(state.lastCheck) < CHECK_EVERY)) checkChannels();
 setInterval(() => checkChannels(), CHECK_EVERY);
