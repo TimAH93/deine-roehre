@@ -428,6 +428,7 @@ async function play(id, from) {
   playing = { id, from, queue: queueFor(from, id) };
   paused = false; hideCover();
   showPlayer();
+  if (!mini && !only) watch(true);   // watching: the video fills the window
   render();
   const p = await loadYouTube();
   p.loadVideoById(id);
@@ -492,10 +493,37 @@ function toggle() {
   if (yt.getPlayerState() === YT.PlayerState.PLAYING) yt.pauseVideo(); else yt.playVideo();
 }
 
-function setOnly(on) { only = on; document.body.classList.toggle('wl-only', on || mini); renderBar(); }
+function setOnly(on) { only = on; document.body.classList.toggle('wl-only', on || mini); api.watching(on || mini); renderBar(); }
+// Watching: the video fills the whole window (any size; F11 for the whole screen), the menu waits behind it, the bar
+// shows only when the mouse touches the top edge. Escape: pause, out of full screen, the menu and the windows again.
+let barTimer = null;
+function watch(on) {
+  setOnly(on);
+  hidePreview();
+  if (on) { peekBar(2500); say('Esc: the menu · F11: full screen · Space: pause'); }
+}
+function leaveWatching() {
+  if (mini) setMini(false);
+  if (yt && playing && yt.getPlayerState?.() === YT.PlayerState.PLAYING) yt.pauseVideo();
+  setOnly(false);
+  if (!menu.isOpen) menu.open();
+}
+function peekBar(ms = 1800) {
+  bar.classList.add('show');
+  clearTimeout(barTimer);
+  barTimer = setTimeout(() => { if (!bar.matches(':hover, :focus-within')) bar.classList.remove('show'); }, ms);
+}
+$('reveal').addEventListener('pointerenter', () => peekBar());
+bar.addEventListener('pointerleave', () => peekBar(600));
+// A click into YouTube's player gives it the keyboard; it is handed back right away, so Escape, Space and the arrows
+// stay ours (on the PC, Escape and F11 are caught before the page anyway).
+addEventListener('blur', () => setTimeout(() => {
+  const a = document.activeElement;
+  if (playing && document.hasFocus() && a?.tagName === 'IFRAME') a.blur();
+}, 0));
 function setMini(on) {
   if (mini === on) return;
-  mini = on; api.mini(on);
+  mini = on; api.mini(on); api.watching(on || only);
   document.body.classList.toggle('wl-mini', on);
   document.body.classList.toggle('wl-only', on || only);
   renderBar();
@@ -512,7 +540,7 @@ function renderBar() {
     btn(paused ? 'Play' : 'Pause', toggle),
     nextId(1) ? btn('Next', () => skip(1)) : null,
     isMusic ? btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; playing.queue = L.musicOrder(state.music, shuffle, playing.id); render(); }, 'wide notmini', { 'aria-pressed': String(shuffle) }) : null,
-    mini ? null : btn(only ? 'Show all' : 'Video only', () => setOnly(!only)),
+    mini ? null : only ? btn('Menu (Esc)', leaveWatching) : btn('Full window', () => watch(true)),
     api.desktop ? btn(mini ? 'Bigger' : 'Mini', () => setMini(!mini)) : null);
 }
 
@@ -524,17 +552,24 @@ setInterval(() => {
   renderBar();
 }, 30000);
 
-// Escape closes the bigger look first, then leaves the mini player and video only; otherwise it is the menu's.
+// Escape closes the bigger look first, then leaves watching (pause, the menu again); otherwise it is the menu's.
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !(mini || only || !previewEl.hidden)) return;
   e.stopImmediatePropagation();
-  if (!previewEl.hidden) hidePreview(); else if (mini) setMini(false); else setOnly(false);
+  if (!previewEl.hidden) hidePreview(); else leaveWatching();
 }, true);
+// While a video is on: Space pauses, the arrows jump 5 seconds, F full screen (F11 too).
 document.addEventListener('keydown', (e) => {
-  if (e.key !== ' ' || !playing || (e.target.closest && e.target.closest('input, textarea, select, button'))) return;
-  e.preventDefault(); toggle();
+  if (!playing || (e.target.closest && e.target.closest('input, textarea, select, button'))) return;
+  if (e.key === ' ') { e.preventDefault(); toggle(); }
+  else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && yt?.getCurrentTime) { e.preventDefault(); yt.seekTo(Math.max(0, yt.getCurrentTime() + (e.key === 'ArrowLeft' ? -5 : 5)), true); }
+  else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); if (!only) watch(true); api.fullscreen(); }
+  else if (e.key === 'F11' && !api.desktop) { e.preventDefault(); api.fullscreen(); }
 });
-api.onKey((action) => { if (action === 'toggle') toggle(); else if (action === 'next') skip(1); else if (action === 'previous') skip(-1); });
+api.onKey((action) => {
+  if (action === 'toggle') toggle(); else if (action === 'next') skip(1); else if (action === 'previous') skip(-1);
+  else if (action === 'escape') leaveWatching();
+});
 
 // ---- start: the lists, the menu open ----
 state = L.cleanState(await api.load());   // also an older file without the newer parts

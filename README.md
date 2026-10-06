@@ -50,10 +50,13 @@ Tage legen sich selbst an, wenn du das erste Video dafür wählst. Ist ein Tag
 vorbei, gehen nicht gesehene Videos von selbst zurück nach Pick. Einen anderen
 Tag als heute oder Samstag legst du unten in Today an („Plan another day…“).
 
-Der **Player** ist ein eigenes Fenster, beliebig groß. „Video only“ zeigt nur
-das Video, „Mini“ einen kleinen Player unten rechts, immer im Vordergrund (am
-PC). Leertaste pausiert, die Medientasten der Tastatur gehen auch. Pause- und
-Endbildschirm von YouTube werden abgedeckt, also keine Empfehlungen.
+**Beim Schauen** füllt das Video das ganze Fenster, egal wie groß du es
+ziehst; das Menü ist weg. **F11** (oder F): ganzer Bildschirm. **Escape**:
+Pause, raus aus dem Vollbild, Menü und Fenster wieder da. Die Leiste (Pause,
+Next, Mini) erscheint, wenn die Maus den oberen Rand berührt. Leertaste
+pausiert, Pfeiltasten springen 5 Sekunden, die Medientasten gehen auch.
+„Mini“ (am PC): ein kleiner Player unten rechts, immer im Vordergrund.
+Pause- und Endbildschirm von YouTube werden abgedeckt, also keine Empfehlungen.
 
 ## Mit Google anmelden (einmal einrichten, etwa 15 Minuten)
 

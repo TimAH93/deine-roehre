@@ -136,8 +136,12 @@ body.wl-only .ub-home, body.wl-only .ub-menu, body.wl-only .ub-window:not(#w-pla
 body.wl-only #w-player { inset: 0 !important; width: auto !important; height: auto !important; max-width: none; max-height: none; border: 0; box-shadow: none; background: #000; }
 body.wl-only #w-player > .ag-stars, body.wl-only #w-player > .ub-resize, body.wl-only #w-player > .ub-close { display: none; }
 body.wl-only .wl-screen { margin: 0; border: 0; }
-body.wl-only .wl-bar { padding: 3px 6px; opacity: 0.35; transition: opacity 160ms var(--ag-ease); }
-body.wl-only .wl-bar:hover, body.wl-only .wl-bar:focus-within { opacity: 1; }
+/* watching: the bar lies over the top of the video, hidden; the mouse at the top edge (the reveal strip) shows it */
+body.wl-only .wl-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 4; padding: 6px 10px; border: 0;
+  background: linear-gradient(rgba(4, 3, 3, 0.94), rgba(4, 3, 3, 0.72)); opacity: 0; pointer-events: none; transition: opacity 200ms var(--ag-ease); }
+body.wl-only .wl-bar.show, body.wl-only .wl-bar:focus-within { opacity: 1; pointer-events: auto; }
+.wl-reveal { display: none; }
+body.wl-only .wl-reveal { display: block; position: absolute; top: 0; left: 0; right: 0; height: 14px; z-index: 3; }
 body.wl-only .wl-bar .ag-title, body.wl-only .wl-bar .now small, body.wl-only .wl-bar .wide { display: none; }
 body.wl-only .wl-bar button { padding: 2px 8px; }
 body.wl-mini .wl-bar .notmini { display: none; }

@@ -88,7 +88,8 @@ export const api = {
     if (store.get(WANTS) === '1') { const r = await answer(() => g.videoInfo(ids))(); if (r.ok) return r.value; }
     return Object.fromEntries(await Promise.all(ids.slice(0, 50).map(async (id) => [id, await oembed(id)])));
   },
-  onTop: () => {}, mini: () => {}, onKey: () => {},
+  onTop: () => {}, mini: () => {}, onKey: () => {}, watching: () => {},
+  fullscreen: () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); },
   youtube: (id) => window.open(watchUrl(id), '_blank', 'noopener'),
   google: {
     status: answer(async () => ({ configured: !!clientId(), signedIn: !!clientId() && store.get(WANTS) === '1' })),

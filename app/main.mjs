@@ -93,7 +93,7 @@ async function videoInfo(ids) {
   return out;
 }
 
-let win = null, normalBounds = null, mini = false, onTop = false;
+let win = null, normalBounds = null, mini = false, onTop = false, watching = false;   // watching: the video fills the window
 
 // A remembered place is used only while it still lies on a connected screen.
 function onScreen(b) {
@@ -118,6 +118,17 @@ async function createWindow(url) {
   // The page stays the page: no navigating away, no new windows (a click on the player's YouTube logo does nothing).
   win.webContents.on('will-navigate', (e, to) => { if (to !== url) e.preventDefault(); });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // F11: full screen. Escape while watching: back to the menu (the page pauses), and out of full screen. Caught here,
+  // before the page, because a click into YouTube's player gives it the keyboard and it would swallow both keys.
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F11') { e.preventDefault(); win.setFullScreen(!win.isFullScreen()); return; }
+    if (input.key === 'Escape' && (watching || win.isFullScreen())) {
+      e.preventDefault();
+      if (win.isFullScreen()) win.setFullScreen(false);
+      if (watching) win.webContents.send('wl:key', 'escape');
+    }
+  });
   let timer = null;
   const later = () => { clearTimeout(timer); timer = setTimeout(saveWindow, 400); };
   win.on('resize', later); win.on('move', later);
@@ -128,6 +139,7 @@ async function createWindow(url) {
 
 function setMini(on) {
   if (!win || on === mini) return;
+  if (on && win.isFullScreen()) { win.once('leave-full-screen', () => setMini(true)); win.setFullScreen(false); return; }
   if (on) {
     normalBounds = win.isMaximized() ? win.getNormalBounds() : win.getBounds();
     if (win.isMaximized()) win.unmaximize();
@@ -155,6 +167,8 @@ ipcMain.handle('wl:save', async (_e, state) => { await writeJson(dataFile(), cle
 ipcMain.handle('wl:info', (_e, ids) => videoInfo((Array.isArray(ids) ? ids : []).filter((id) => /^[A-Za-z0-9_-]{11}$/.test(id))));
 ipcMain.on('wl:onTop', (_e, on) => { onTop = !!on; if (win && !mini) win.setAlwaysOnTop(onTop, 'floating'); });
 ipcMain.on('wl:mini', (_e, on) => setMini(!!on));
+ipcMain.on('wl:watching', (_e, on) => { watching = !!on; });
+ipcMain.on('wl:fullscreen', () => { if (win) win.setFullScreen(!win.isFullScreen()); });
 // Google (google.mjs): every call answers { ok, value } or { ok: false, error, signedOut }, so the page can say why.
 const answer = (fn) => async (_e, ...args) => {
   try { return { ok: true, value: await fn(...args) }; }
