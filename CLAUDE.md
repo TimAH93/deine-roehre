@@ -12,4 +12,6 @@ moved here.
   blocking, no audio without the picture.
 - PowerShell steps for Tim: every set starts with its own box
   `cd C:\Users\Tim\Documents\deine-roehre`; one command per box.
+- Google sign-in (app/google.mjs): scope youtube.readonly only; the client
+  file and token live in %APPDATA%\deine-roehre, never in Git.
 - Before pushing: `npm test`.

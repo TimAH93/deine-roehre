@@ -8,6 +8,8 @@
 import * as L from './lists.mjs';
 
 const api = window.roehre;
+let google = { configured: false, signedIn: false };   // the Google sign-in (Settings), from the main program
+let checking = false, playlists = null;               // a look at the channels is running; Tim's playlists once loaded
 const $ = (id) => document.getElementById(id);
 const home = $('home'), cover = $('cover'), toast = $('toast'), bar = $('bar'), playerWin = $('w-player');
 
@@ -51,6 +53,16 @@ const title = (id) => state.videos[id]?.title || 'Video ' + id;
 const dayById = (id) => state.days.find((d) => d.id === id);
 const dayLabel = (d) => d.name || L.dayName(d.date);
 const openDay = () => state.days.find((d) => L.dayStatus(d) === 'open');
+// "3 h ago", "2 days ago"
+function ago(iso, now = new Date()) {
+  const min = Math.max(0, Math.round((now - Date.parse(iso)) / 60000));
+  if (!Date.parse(iso)) return '';
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  if (min < 1440) return `${Math.round(min / 60)} h ago`;
+  const d = Math.round(min / 1440);
+  return d === 1 ? 'yesterday' : `${d} days ago`;
+}
 
 // ---- home and the menu ----
 const noEmblem = () => { $('emblem').hidden = true; $('word').hidden = false; };   // no emblem on this PC: the word
@@ -78,13 +90,13 @@ function row(id, acts, cls = '') {
   return h('li', { class: `wl-r${cls}` },
     h('img', { src: L.thumbUrl(id), alt: '', loading: 'lazy', onerror: (e) => e.target.removeAttribute('src') }),
     h('div', {}, h('div', { class: 't' }, title(id)),
-      h('div', { class: 'c' }, [v?.channel, unavailable.has(id) ? 'plays only on youtube.com' : null].filter(Boolean).join(' · '))),
+      h('div', { class: 'c' }, [v?.channel, cls.includes('feed') ? ago(v?.published) : null, unavailable.has(id) ? 'plays only on youtube.com' : null].filter(Boolean).join(' · '))),
     h('div', { class: 'acts' }, acts));
 }
 // "Plan for ..." menu: the day lists with room, music, the inbox.
 function planSelect(id, here) {
   const now = new Date();
-  const opts = [h('option', { value: '' }, here === 'inbox' ? 'Plan for…' : 'Move to…')];
+  const opts = [h('option', { value: '' }, here === 'inbox' || here === 'feed' ? 'Plan for…' : 'Move to…')];
   for (const d of state.days) {
     if (d.id === here || L.dayStatus(d, now) === 'over') continue;
     const full = d.items.length >= state.settings.perDay;
@@ -111,6 +123,39 @@ function renderInbox() {
     state.inbox.length
       ? h('ul', { class: 'wl-rows' }, state.inbox.map((id) => row(id, [planSelect(id, 'inbox'), removeBtn(id)])))
       : h('p', { class: 'wl-empty' }, 'The inbox is empty. Copy a video\'s address on YouTube (or "Share, Copy link") and paste it here.'));
+}
+
+// ---- Channels: new uploads of Tim's subscriptions (Google sign-in), newest first; nothing plays from here ----
+function renderChannels() {
+  const checked = state.lastCheck ? `Last look: ${ago(state.lastCheck)}.` : 'Not looked yet.';
+  fill($('channels'),
+    google.signedIn
+      ? h('div', { class: 'wl-row-of' },
+          h('span', { class: 'wl-sub', style: 'margin:0' }, checking ? 'Looking at your channels…' : `New videos from the channels you subscribe to. ${checked} Every 3 hours by itself.`),
+          btn('Look now', () => checkChannels(true), '', { disabled: checking }))
+      : h('p', { class: 'wl-note' }, 'Sign in with Google (Settings) and the new videos of the channels you subscribe to appear here, newest first. Nothing else: no recommendations.'),
+    state.feed.length
+      ? h('ul', { class: 'wl-rows' }, state.feed.map((id) => row(id, [planSelect(id, 'feed'), removeBtn(id)], ' feed')))
+      : google.signedIn ? h('p', { class: 'wl-empty' }, 'Nothing new from your channels.') : null);
+}
+const CHECK_EVERY = 3 * 3600 * 1000, FIRST_LOOK = 3 * 86400 * 1000, OVERLAP = 3600 * 1000;   // every 3 hours; the first look 3 days back
+async function checkChannels(byHand = false) {
+  if (!google.signedIn || checking) return;
+  checking = true; renderChannels();
+  const started = new Date();
+  // each look reaches an hour behind the last one (a video YouTube lists late is still caught; `seen` drops repeats)
+  const r = await api.google.feed(new Date(state.lastCheck ? Date.parse(state.lastCheck) - OVERLAP : started - FIRST_LOOK).toISOString());
+  checking = false;
+  if (!r.ok) { say(r.error); if (r.signedOut) await refreshGoogle(); renderChannels(); return; }
+  const added = L.addToFeed(state, r.value, started);
+  state.lastCheck = started.toISOString();
+  if (added.length || byHand) say(added.length ? `${added.length} new from your channels.` : 'Nothing new from your channels.');
+  changed();
+}
+async function refreshGoogle() {
+  const r = await api.google.status();
+  if (r.ok) google = r.value;
+  if (!google.signedIn) playlists = null;
 }
 
 // ---- Days: the day lists on the left (words and counts), the chosen one on the right ----
@@ -185,9 +230,30 @@ function renderNewDay() {
 }
 
 // ---- Music ----
+// Tim's YouTube playlists (and liked videos) into Music, once signed in.
+const listPick = h('select', { 'aria-label': 'Your YouTube playlists' });
+async function loadPlaylists() {
+  const r = await api.google.playlists();
+  if (!r.ok) { say(r.error); if (r.signedOut) { await refreshGoogle(); render(); } return; }
+  playlists = r.value;
+  fill(listPick, playlists.map((p) => h('option', { value: p.id }, p.count == null ? p.title : `${p.title} (${p.count})`)));
+  renderMusic();
+}
+async function importPlaylist() {
+  const p = playlists?.find((x) => x.id === listPick.value);
+  if (!p) return;
+  say(`Fetching "${p.title}"…`);
+  const r = await api.google.playlist(p.id);
+  if (!r.ok) { say(r.error); return; }
+  const n = L.importToMusic(state, r.value);
+  say(`"${p.title}": ${n} in Music.`);
+  changed();
+}
 function renderMusic() {
   fill($('music'),
     h('p', { class: 'wl-sub' }, 'Plays any time, one after another, in a loop. "Mini" keeps a small player in the corner of the screen.'),
+    google.signedIn ? h('div', { class: 'wl-row-of' },
+      playlists ? [listPick, btn('Import into Music', importPlaylist)] : btn('Import from YouTube…', loadPlaylists)) : null,
     state.music.length ? h('div', { class: 'wl-row-of' },
       btn('Play all', () => play(L.musicOrder(state.music, shuffle)[0], 'music'), 'wl-go'),
       btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; render(); }, '', { 'aria-pressed': String(shuffle) })) : null,
@@ -204,11 +270,31 @@ function renderSettings() {
         onchange: (e) => { state.settings = L.cleanState({ ...state, settings: { ...state.settings, perDay: e.target.value } }).settings; changed(); } })),
     h('label', {}, 'Window stays in front of other programs',
       btn(state.settings.onTop ? 'On' : 'Off', () => { state.settings.onTop = !state.settings.onTop; api.onTop(state.settings.onTop); changed(); }, '', { 'aria-pressed': String(state.settings.onTop) })),
-    h('label', {}, 'Window places and sizes', btn('Reset', () => { UB.reset(); say('Every window is back in its first place.'); }))));
+    h('label', {}, 'Window places and sizes', btn('Reset', () => { UB.reset(); say('Every window is back in its first place.'); })),
+    h('div', { class: 'ub-section' }, 'Google account'),
+    h('p', { class: 'wl-note' }, google.signedIn
+      ? 'Signed in, read only: your subscriptions (Channels) and playlists (Music). Nothing on your account is changed.'
+      : google.configured ? 'The client file is in. Sign in to see your channels and playlists.'
+        : 'First the client file from your Google Cloud project (README, "Mit Google anmelden"), then sign in.'),
+    h('div', { class: 'wl-row-of' },
+      btn(google.configured ? 'Choose another client file' : 'Choose client file', async () => {
+        const r = await api.google.chooseClient();
+        if (!r.ok) { say(r.error); return; }
+        if (r.value) { say('Client file taken.'); await refreshGoogle(); render(); }
+      }, google.configured ? 'wl-quiet' : 'wl-go'),
+      google.configured && !google.signedIn ? btn('Sign in with Google', async () => {
+        say('Your browser opens Google\'s sign-in page…');
+        const r = await api.google.signIn();
+        if (!r.ok) { say(r.error); return; }
+        await refreshGoogle(); render();
+        say('Signed in.');
+        checkChannels();
+      }, 'wl-go') : null,
+      google.signedIn ? btn('Sign out', async () => { await api.google.signOut(); await refreshGoogle(); render(); say('Signed out.'); }) : null)));
 }
 
 function render() {
-  renderInbox(); renderDays(); renderMusic(); renderSettings(); renderBar();
+  renderInbox(); renderChannels(); renderDays(); renderMusic(); renderSettings(); renderBar();
 }
 
 // ---- adding videos ----
@@ -361,6 +447,7 @@ function renderBar() {
 setInterval(() => {
   const typing = $('w-days').contains(document.activeElement) && document.activeElement.tagName !== 'BUTTON';
   if (!typing) renderDays();
+  if (!$('w-channels').contains(document.activeElement)) renderChannels();
   renderBar();
 }, 30000);
 
@@ -377,9 +464,13 @@ document.addEventListener('keydown', (e) => {
 api.onKey((action) => { if (action === 'toggle') toggle(); else if (action === 'next') skip(1); else if (action === 'previous') skip(-1); });
 
 // ---- start: the lists, the menu open ----
-state = await api.load();
+state = L.cleanState(await api.load());   // also an older file without the newer parts
+await refreshGoogle();
 render();
 menu.open();
 const today = openDay();
 if (today) say(`${dayLabel(today)} is open: ${today.items.length - today.watched.length} to watch.`);
 fetchInfo(Object.keys(state.videos).filter((id) => !state.videos[id].title));
+// The channels: now if the last look is older than 3 hours, then every 3 hours (while the app is open).
+if (google.signedIn && !(Date.now() - Date.parse(state.lastCheck) < CHECK_EVERY)) checkChannels();
+setInterval(() => checkChannels(), CHECK_EVERY);

@@ -3,12 +3,13 @@
 // 127.0.0.1 inside this program, because YouTube's embedded player refuses pages without a web address (file://).
 // The lists are kept in lists.json in Electron's user-data folder (%APPDATA%\deine-roehre on Windows); the window's
 // place and size in window.json next to it. The page reaches the disk and the window only through preload.cjs.
-import { app, BrowserWindow, Menu, ipcMain, shell, screen, globalShortcut, session } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, shell, screen, globalShortcut, session, dialog } from 'electron';
 import { promises as fs } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanState, emptyState, watchUrl } from './lists.mjs';
+import * as google from './google.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -154,6 +155,24 @@ ipcMain.handle('wl:save', async (_e, state) => { await writeJson(dataFile(), cle
 ipcMain.handle('wl:info', (_e, ids) => videoInfo((Array.isArray(ids) ? ids : []).filter((id) => /^[A-Za-z0-9_-]{11}$/.test(id))));
 ipcMain.on('wl:onTop', (_e, on) => { onTop = !!on; if (win && !mini) win.setAlwaysOnTop(onTop, 'floating'); });
 ipcMain.on('wl:mini', (_e, on) => setMini(!!on));
+// Google (google.mjs): every call answers { ok, value } or { ok: false, error, signedOut }, so the page can say why.
+const answer = (fn) => async (_e, ...args) => {
+  try { return { ok: true, value: await fn(...args) }; }
+  catch (e) { return { ok: false, error: String(e.message || e), signedOut: !!e.signedOut }; }
+};
+ipcMain.handle('g:status', answer(() => google.status()));
+ipcMain.handle('g:client', answer(async () => {
+  const pick = await dialog.showOpenDialog(win, { title: 'The client file from Google Cloud', filters: [{ name: 'Google client file', extensions: ['json'] }], properties: ['openFile'] });
+  if (pick.canceled || !pick.filePaths[0]) return null;
+  const error = await google.setClient(pick.filePaths[0]);
+  if (error) throw new Error(error);
+  return true;
+}));
+ipcMain.handle('g:signIn', answer(async () => { await google.signIn(); if (win) { if (win.isMinimized()) win.restore(); win.focus(); } return true; }));
+ipcMain.handle('g:signOut', answer(() => google.signOut()));
+ipcMain.handle('g:feed', answer(async (since) => google.uploads(await google.subscriptions(), String(since || ''))));
+ipcMain.handle('g:playlists', answer(() => google.playlists()));
+ipcMain.handle('g:playlist', answer((id) => google.playlistVideos(String(id || ''))));
 ipcMain.on('wl:youtube', (_e, id) => { if (/^[A-Za-z0-9_-]{11}$/.test(id)) shell.openExternal(watchUrl(id)); });
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });

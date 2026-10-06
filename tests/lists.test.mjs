@@ -91,3 +91,44 @@ test('a saved file is made whole: bad ids, unknown videos and bad settings are d
   assert.deepEqual(s.settings, { perDay: 20, onTop: true });   // the old theme setting is gone (Archon is black only)
   assert.deepEqual(L.cleanState(null), L.emptyState());
 });
+
+test('channel feed: newest first, nothing plays, a removed upload never comes back, capped', () => {
+  const s = L.emptyState(), now = at('2026-10-06T10:00');
+  const added = L.addToFeed(s, [
+    { id: A, title: 'Old', channel: 'One', published: '2026-10-01T10:00:00Z' },
+    { id: B, title: 'New', channel: 'Two', published: '2026-10-05T10:00:00Z' },
+    { id: 'not an id' },
+  ], now);
+  assert.deepEqual(added, [A, B]);
+  assert.deepEqual(s.feed, [B, A]);
+  assert.equal(L.placeOf(s, A), 'feed');
+  assert.equal(L.canPlay(s, A, now), false);
+  L.removeVideo(s, A);
+  assert.deepEqual(L.addToFeed(s, [{ id: A, published: '2026-10-01T10:00:00Z' }], now), []);
+  assert.deepEqual(L.moveTo(s, B, 'inbox', now), {});
+  assert.deepEqual(s.feed, []);
+  assert.deepEqual(L.addToInbox(s, [B]), []);   // already in a list
+  const many = Array.from({ length: L.FEED_MAX + 5 }, (_, i) => ({ id: ('v' + String(i).padStart(10, '0')).slice(0, 11), published: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString() }));
+  L.addToFeed(s, many, now);
+  assert.equal(s.feed.length, L.FEED_MAX);
+  assert.equal(s.feed[0], many.at(-1).id);           // the newest stays
+  assert.equal(s.videos[many[0].id], undefined);     // the oldest fell off
+  const again = L.cleanState(JSON.parse(JSON.stringify(s)));
+  assert.deepEqual(again.feed, s.feed);
+  assert.ok(again.seen.includes(A));
+});
+
+test('playlist into Music: new ones added, inbox and feed ones move, planned ones stay', () => {
+  const s = L.emptyState(), now = at('2026-10-06T10:00');
+  L.addToInbox(s, [A], {}, now);
+  L.addToFeed(s, [{ id: B, published: '2026-10-05T10:00:00Z' }], now);
+  L.addToInbox(s, [C], {}, now);
+  const { day } = L.newDay(s, { date: '2026-10-10' }, now);
+  L.moveTo(s, C, day.id, now);
+  assert.equal(L.importToMusic(s, [{ id: A }, { id: B }, { id: C }, { id: D, title: 'Song' }], now), 3);
+  assert.deepEqual(s.music, [A, B, D]);
+  assert.deepEqual(s.inbox, []);
+  assert.deepEqual(s.feed, []);
+  assert.equal(L.placeOf(s, C), day.id);
+  assert.equal(s.videos[D].title, 'Song');
+});

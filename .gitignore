@@ -9,3 +9,7 @@ brand/*.png
 brand/*.jpg
 brand/*.jpeg
 brand/*.webp
+
+# Google client files are Tim's access (README, "Mit Google anmelden")
+client_secret*.json
+google-client.json

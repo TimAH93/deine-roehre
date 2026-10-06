@@ -2,14 +2,19 @@
 // time windows, the daily limit. The page (app.mjs) and the tests (tests/lists.test.mjs) both use this file.
 //
 // The saved state (lists.json, kept by main.mjs):
-//   videos: { [id]: { id, title, channel, added } }   every video Tim ever pasted that is still in a list
+//   videos: { [id]: { id, title, channel, added, published } }   every video that is still in a list
 //   inbox:  [id]                                      picked up, not planned yet; nothing in here plays
+//   feed:   [id]                                      new uploads of Tim's subscribed channels (Google sign-in),
+//                                                     newest first; nothing in here plays either
+//   seen:   [id]                                      every upload ever offered in the feed, so a removed one stays away
+//   lastCheck: ISO time of the last look at the channels
 //   days:   [{ id, name, date, from, to, items: [id], watched: [id] }]
 //           a day list plays only on its date between from and to ("HH:MM"; empty = the whole day)
 //   music:  [id]                                      plays any time, in order or shuffled, in a loop
 //   settings: { perDay, onTop }                      perDay: how many videos a day list may hold
 
 export const DEFAULT_PER_DAY = 3;
+export const FEED_MAX = 300, SEEN_MAX = 5000;
 const ID = /^[A-Za-z0-9_-]{11}$/;
 
 // The video id in one YouTube link (watch, youtu.be, shorts, embed, live, music, mobile) or a bare 11-character id.
@@ -43,18 +48,21 @@ export const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 export const thumbUrl = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 
 export function emptyState() {
-  return { videos: {}, inbox: [], days: [], music: [], settings: { perDay: DEFAULT_PER_DAY, onTop: false } };
+  return { videos: {}, inbox: [], feed: [], seen: [], lastCheck: '', days: [], music: [], settings: { perDay: DEFAULT_PER_DAY, onTop: false } };
 }
 
 // A saved file from any version, made whole (missing parts filled in, unknown ids dropped).
 export function cleanState(raw) {
   const s = emptyState(), r = raw && typeof raw === 'object' ? raw : {};
   for (const [id, v] of Object.entries(r.videos || {})) {
-    if (ID.test(id)) s.videos[id] = { id, title: String(v?.title || ''), channel: String(v?.channel || ''), added: String(v?.added || '') };
+    if (ID.test(id)) s.videos[id] = { id, title: String(v?.title || ''), channel: String(v?.channel || ''), added: String(v?.added || ''), published: String(v?.published || '') };
   }
   const ids = (list) => [...new Set((Array.isArray(list) ? list : []).filter((id) => s.videos[id]))];
   s.inbox = ids(r.inbox);
   s.music = ids(r.music);
+  s.feed = ids(r.feed);
+  s.seen = [...new Set((Array.isArray(r.seen) ? r.seen : []).filter((id) => ID.test(id)))].slice(-SEEN_MAX);
+  s.lastCheck = isNaN(Date.parse(r.lastCheck)) ? '' : String(r.lastCheck);
   s.days = (Array.isArray(r.days) ? r.days : []).filter((d) => d && d.id && /^\d{4}-\d{2}-\d{2}$/.test(d.date)).map((d) => ({
     id: String(d.id), name: String(d.name || ''), date: d.date, from: time(d.from), to: time(d.to),
     items: ids(d.items), watched: ids(d.watched),
@@ -138,15 +146,49 @@ export function newDay(state, { date, from = '', to = '', name = '' }, now = new
   return { day };
 }
 
-// Where a video is now: 'inbox', 'music', a day's id, or null.
+// New uploads from the subscribed channels into the feed, newest first: [{ id, title, channel, published }].
+// A video already in a list, or offered before (also one Tim removed), is left out. The oldest fall off past FEED_MAX.
+export function addToFeed(state, items, now = new Date()) {
+  const added = [];
+  for (const v of items) {
+    if (!ID.test(v?.id || '') || state.videos[v.id] || state.seen.includes(v.id)) continue;
+    state.videos[v.id] = { id: v.id, title: String(v.title || ''), channel: String(v.channel || ''), added: now.toISOString(), published: String(v.published || '') };
+    state.feed.push(v.id); state.seen.push(v.id); added.push(v.id);
+  }
+  const when = (id) => Date.parse(state.videos[id].published) || 0;
+  state.feed.sort((a, b) => when(b) - when(a));
+  for (const id of state.feed.splice(FEED_MAX)) delete state.videos[id];
+  if (state.seen.length > SEEN_MAX) state.seen.splice(0, state.seen.length - SEEN_MAX);
+  return added.filter((id) => state.videos[id]);
+}
+
+// A YouTube playlist into Music: [{ id, title, channel }]. New videos are added; ones waiting in the inbox or the feed
+// move over; ones planned for a day stay there. Returns how many are in Music now from this playlist.
+export function importToMusic(state, items, now = new Date()) {
+  let n = 0;
+  for (const v of items) {
+    if (!ID.test(v?.id || '')) continue;
+    const place = placeOf(state, v.id);
+    if (place === 'music') { n++; continue; }
+    if (place && place !== 'inbox' && place !== 'feed') continue;
+    if (!state.videos[v.id]) state.videos[v.id] = { id: v.id, title: String(v.title || ''), channel: String(v.channel || ''), added: now.toISOString(), published: '' };
+    takeOut(state, v.id);
+    state.music.push(v.id); n++;
+  }
+  return n;
+}
+
+// Where a video is now: 'inbox', 'feed', 'music', a day's id, or null.
 export function placeOf(state, id) {
   if (state.inbox.includes(id)) return 'inbox';
+  if (state.feed.includes(id)) return 'feed';
   if (state.music.includes(id)) return 'music';
   return state.days.find((d) => d.items.includes(id))?.id || null;
 }
 
 function takeOut(state, id) {
   state.inbox = state.inbox.filter((x) => x !== id);
+  state.feed = state.feed.filter((x) => x !== id);
   state.music = state.music.filter((x) => x !== id);
   for (const d of state.days) { d.items = d.items.filter((x) => x !== id); d.watched = d.watched.filter((x) => x !== id); }
 }
@@ -184,11 +226,11 @@ export function markWatched(state, dayId, id) {
   if (day && day.items.includes(id) && !day.watched.includes(id)) day.watched.push(id);
 }
 
-// May this video play now? Music always; a day list's video only while its window is open; the inbox never.
+// May this video play now? Music always; a day list's video only while its window is open; the inbox and feed never.
 export function canPlay(state, id, now = new Date()) {
   const place = placeOf(state, id);
   if (place === 'music') return true;
-  if (!place || place === 'inbox') return false;
+  if (!place || place === 'inbox' || place === 'feed') return false;
   return dayStatus(state.days.find((d) => d.id === place), now) === 'open';
 }
 
