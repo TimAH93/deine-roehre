@@ -16,7 +16,6 @@ const $ = (id) => document.getElementById(id);
 const home = $('home'), cover = $('cover'), toast = $('toast'), bar = $('bar'), playerWin = $('w-player');
 
 let state = L.emptyState();
-let dayView = null;            // the day shown in the Days window: a day's id, or 'new'
 let playing = null;            // { id, from: 'music' | dayId, queue: [id] }
 let shuffle = false, only = false, mini = false, paused = false;
 const unavailable = new Set(); // videos YouTube will not show outside youtube.com (known since this start)
@@ -95,7 +94,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 setInterval(() => pull(), 2 * 60 * 1000);
 const title = (id) => state.videos[id]?.title || 'Video ' + id;
 const dayById = (id) => state.days.find((d) => d.id === id);
-const dayLabel = (d) => d.name || L.dayName(d.date);
+// A day's name; the coming Saturday is always "Saturday", like its button (also when that is tomorrow).
+const dayLabel = (d) => d.name || (d.date === L.nextSaturday() && d.date !== L.dayKey() ? 'Saturday' : L.dayName(d.date));
 const openDay = () => state.days.find((d) => L.dayStatus(d) === 'open');
 // "3 h ago", "2 days ago"
 function ago(iso, now = new Date()) {
@@ -125,75 +125,152 @@ function diamonds() {   // an ember diamond where each path leaves home and wher
 const menu = UB.menu(home, document.querySelectorAll('.ub-item'), {
   gap: 64,
   onOpen: () => setTimeout(diamonds, 480),   // once the lines are drawn and the items have settled
-  onExpand: (_it, win) => { if (win.id === 'w-days' && !dayView) dayView = openDay()?.id || state.days[0]?.id || 'new'; render(); },
+  onExpand: () => render(),
 });
+const item = (win) => document.querySelector(`.ub-item[data-window="${win}"]`);
+// From one window to another: back into the menu, then the other item grows (the base's own motion both ways).
+function goTo(win) { menu.back(); setTimeout(() => menu.expand(item(win)), 330); }
 
-// ---- one video's row ----
-function row(id, acts, cls = '') {
+// ---- one video as a card: its picture, title, channel; buttons below ----
+const todayDay = () => state.days.find((d) => d.date === L.dayKey());
+const saturdayDay = () => state.days.find((d) => d.date === L.nextSaturday());
+function card(id, buttons, cls = '') {
   const v = state.videos[id];
-  return h('li', { class: `wl-r${cls}` },
-    h('img', { src: L.thumbUrl(id), alt: '', loading: 'lazy', onerror: (e) => e.target.removeAttribute('src') }),
-    h('div', {}, h('div', { class: 't' }, title(id)),
-      h('div', { class: 'c' }, [v?.channel, cls.includes('feed') ? ago(v?.published) : null, unavailable.has(id) ? 'plays only on youtube.com' : null].filter(Boolean).join(' · '))),
-    h('div', { class: 'acts' }, acts));
+  return h('li', { class: `wl-card${cls}` },
+    h('button', { type: 'button', class: 'wl-thumb', 'aria-label': 'Show bigger: ' + title(id), onclick: () => preview(id) },
+      h('img', { src: L.thumbUrl(id), alt: '', loading: 'lazy', onerror: (e) => e.target.removeAttribute('src') })),
+    h('div', { class: 't', title: title(id) }, title(id)),
+    h('div', { class: 'c' }, [v?.channel, state.feed.includes(id) ? ago(v?.published) : null, unavailable.has(id) ? 'plays only on youtube.com' : null].filter(Boolean).join(' · ')),
+    h('div', { class: 'acts' }, buttons));
 }
-// "Plan for ..." menu: the day lists with room, music, the inbox.
-function planSelect(id, here) {
-  const now = new Date();
-  const opts = [h('option', { value: '' }, here === 'inbox' || here === 'feed' ? 'Plan for…' : 'Move to…')];
-  for (const d of state.days) {
-    if (d.id === here || L.dayStatus(d, now) === 'over') continue;
-    const full = d.items.length >= state.settings.perDay;
-    opts.push(h('option', { value: d.id, disabled: full }, `${dayLabel(d)}${full ? ' (full)' : ''}`));
-  }
-  if (here !== 'music') opts.push(h('option', { value: 'music' }, 'Music'));
-  if (here !== 'inbox') opts.push(h('option', { value: 'inbox' }, 'Inbox'));
-  return h('select', { 'aria-label': 'Move this video', onchange: (e) => {
-    const r = L.moveTo(state, id, e.target.value);
-    if (r.error) { say(r.error); e.target.value = ''; return; }
-    changed();
-  } }, opts);
+// One click to plan: Today, Saturday, any other coming day, Music, back to Pick; and Remove.
+function planButtons(id, here = L.placeOf(state, id)) {
+  const go = (target, label) => {
+    const r = L.planFor(state, id, target);
+    if (r.error) { say(r.error); return; }
+    say(`${title(id).slice(0, 40)}${title(id).length > 40 ? '…' : ''}: ${label}.`);
+    hidePreview(); changed();
+  };
+  const now = new Date(), t = todayDay(), sa = saturdayDay();
+  const others = state.days.filter((d) => d !== t && d !== sa && L.dayStatus(d, now) !== 'over');
+  return [
+    here !== t?.id ? btn('Today', () => go('today', 'today')) : null,
+    here !== sa?.id ? btn('Saturday', () => go('saturday', 'Saturday')) : null,
+    others.filter((d) => d.id !== here).map((d) => btn(dayLabel(d), () => go(d.id, dayLabel(d)))),
+    here !== 'music' ? btn('Music', () => go('music', 'Music')) : null,
+    here && here !== 'inbox' && here !== 'feed' ? btn('Back to Pick', () => go('inbox', 'back in Pick'), 'wl-quiet') : null,
+    removeBtn(id),
+  ];
 }
-const removeBtn = (id) => btn('Remove', () => { if (playing?.id === id) stopPlaying(); L.removeVideo(state, id); changed(); }, 'wl-quiet');
+const removeBtn = (id) => btn('Remove', () => { if (playing?.id === id) stopPlaying(); L.removeVideo(state, id); hidePreview(); changed(); }, 'wl-quiet');
 
-// ---- Inbox ----
+// A bigger look at a video without playing it.
+const previewEl = $('preview');
+function preview(id) {
+  const v = state.videos[id];
+  if (!v) return;
+  fill(previewEl,
+    h('img', { src: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, alt: '', onerror: (e) => { e.target.src = L.thumbUrl(id); } }),
+    h('div', { class: 'wl-pv-text' },
+      h('p', { class: 'wl-h' }, title(id)),
+      h('p', { class: 'wl-sub' }, [v.channel, v.published ? ago(v.published) : null].filter(Boolean).join(' · ')),
+      h('div', { class: 'acts' }, planButtons(id), btn('Close', hidePreview, 'wl-quiet'))));
+  previewEl.hidden = false;
+  UB.front(previewEl);
+}
+function hidePreview() { previewEl.hidden = true; }
+
+// ---- Today: what is planned for today, a big Watch; the coming days below ----
+function renderToday() {
+  const now = new Date(), t = todayDay();
+  const left = t ? t.items.filter((id) => !t.watched.includes(id)) : [];
+  const status = t && L.dayStatus(t, now);
+  const todayCards = t ? t.items.map((id) => {
+    const watched = t.watched.includes(id);
+    return card(id, [
+      watched ? h('span', { class: 'wl-tag' }, 'Watched') : null,
+      status === 'open' ? btn(watched ? 'Again' : 'Play', () => play(id, t.id), watched ? '' : 'wl-go') : null,
+      planButtons(id, t.id),
+    ], `${watched ? ' done' : ''}${playing?.id === id ? ' playing' : ''}`);
+  }) : [];
+  const coming = state.days.filter((d) => d !== t && L.dayStatus(d, now) !== 'over');
+  fill($('today'),
+    !t || !t.items.length
+      ? h('div', { class: 'wl-empty' },
+          h('p', { style: 'margin:0 0 12px' }, 'Nothing for today yet. Choose a few videos in Pick: one click on "Today" under a video.'),
+          btn('Open Pick', () => goTo('w-pick'), 'wl-go'))
+      : [
+          h('p', { class: 'wl-sub' }, `${L.dayLine(t, now)} · ${t.items.length} of ${state.settings.perDay}`),
+          status === 'open' && left.length ? h('div', { class: 'wl-row-of' }, btn(left.length === t.items.length ? 'Watch' : 'Continue', () => play(left[0], t.id), 'wl-go wl-big')) : null,
+          status === 'waiting' ? h('p', { class: 'wl-note' }, `Your videos unlock ${L.untilText(L.windowOf(t).opens, now)}.`) : null,
+          status === 'open' && !left.length ? h('p', { class: 'wl-note' }, 'Everything for today is watched.') : null,
+          h('ul', { class: 'wl-cards' }, todayCards),
+        ],
+    coming.map((d) => [
+      h('div', { class: 'ub-section' }, dayLabel(d)),
+      h('p', { class: 'wl-sub' }, `${d.date}, ${L.dayLine(d, now)} · ${d.items.length} of ${state.settings.perDay}`),
+      d.items.length ? h('ul', { class: 'wl-cards' }, d.items.map((id) => card(id, planButtons(id, d.id)))) : h('p', { class: 'wl-empty' }, 'Nothing planned yet.'),
+    ]),
+    h('div', { class: 'wl-another' },
+      anotherOpen ? renderAnother() : btn('Plan another day…', () => { anotherOpen = true; renderToday(); }, 'wl-quiet')));
+}
+// Another day than today and Saturday (made once, so a re-render never loses what is typed).
+let anotherOpen = false;
+const nd = {
+  date: h('input', { type: 'date', value: L.dayKey(), min: L.dayKey() }),
+  from: h('input', { type: 'time', value: '' }),
+  to: h('input', { type: 'time', value: '' }),
+};
+function renderAnother() {
+  return [
+    h('div', { class: 'ub-section' }, 'Another day'),
+    h('div', { class: 'wl-form' }, h('label', {}, 'Date', nd.date), h('label', {}, 'From', nd.from), h('label', {}, 'Until', nd.to)),
+    h('div', { class: 'wl-row-of' },
+      btn('Create', () => {
+        const r = L.newDay(state, { date: nd.date.value, from: nd.from.value, to: nd.to.value });
+        if (r.error) { say(r.error); return; }
+        anotherOpen = false; changed();
+        say(`${dayLabel(r.day)} is ready: its button is under every video in Pick.`);
+      }, 'wl-go'),
+      btn('Cancel', () => { anotherOpen = false; renderToday(); }, 'wl-quiet')),
+  ];
+}
+
+// ---- Pick: everything you might watch, as cards: your own links (Mine) and your channels' new videos ----
+let pickFilter = 'all';
 const paste = h('input', { type: 'text', placeholder: 'Paste YouTube links here (or press Ctrl+V anywhere)', 'aria-label': 'YouTube links' });
 const addPasted = () => { addLinks(paste.value); paste.value = ''; };
 paste.addEventListener('keydown', (e) => { if (e.key === 'Enter') addPasted(); });
-function renderInbox() {
-  fill($('inbox'),
-    h('p', { class: 'wl-sub' }, 'Videos you might want to watch. Nothing plays from here: plan a few for a day.'),
+function renderPick() {
+  const list = pickFilter === 'mine' ? state.inbox : pickFilter === 'channels' ? state.feed : [...state.inbox, ...state.feed];
+  const seg = (key, label, n) => h('button', { type: 'button', 'aria-pressed': String(pickFilter === key), onclick: () => { pickFilter = key; renderPick(); } }, `${label} ${n}`);
+  const checked = state.lastCheck ? `last look ${ago(state.lastCheck)}` : 'not looked yet';
+  fill($('pick'),
     h('div', { class: 'wl-paste' }, paste, btn('Add', addPasted, 'wl-go')),
-    state.inbox.length
-      ? h('ul', { class: 'wl-rows' }, state.inbox.map((id) => row(id, [planSelect(id, 'inbox'), removeBtn(id)])))
-      : h('p', { class: 'wl-empty' }, 'The inbox is empty. Copy a video\'s address on YouTube (or "Share, Copy link") and paste it here.'));
+    h('div', { class: 'wl-row-of' },
+      h('div', { class: 'ub-seg', role: 'group', 'aria-label': 'Show' },
+        seg('all', 'All', state.inbox.length + state.feed.length), seg('mine', 'Mine', state.inbox.length), seg('channels', 'Channels', state.feed.length)),
+      pickFilter !== 'mine' && google.signedIn ? [
+        h('span', { class: 'wl-sub', style: 'margin:0' }, checking ? 'Looking at your channels…' : `Channels: ${checked}`),
+        btn('Look now', () => checkChannels(true), 'wl-quiet', { disabled: checking })] : null),
+    pickFilter !== 'mine' && !google.signedIn ? h('p', { class: 'wl-note' }, 'Sign in with Google (Settings) and the new videos of your subscribed channels appear here too, newest first. No recommendations.') : null,
+    list.length
+      ? h('ul', { class: 'wl-cards' }, list.map((id) => card(id, planButtons(id))))
+      : h('p', { class: 'wl-empty' }, pickFilter === 'channels' ? 'Nothing new from your channels.' : 'Copy a video\'s address on YouTube (or "Share, Copy link") and paste it here.'));
 }
 
-// ---- Channels: new uploads of Tim's subscriptions (Google sign-in), newest first; nothing plays from here ----
-function renderChannels() {
-  const checked = state.lastCheck ? `Last look: ${ago(state.lastCheck)}.` : 'Not looked yet.';
-  fill($('channels'),
-    google.signedIn
-      ? h('div', { class: 'wl-row-of' },
-          h('span', { class: 'wl-sub', style: 'margin:0' }, checking ? 'Looking at your channels…' : `New videos from the channels you subscribe to. ${checked} Every 3 hours by itself.`),
-          btn('Look now', () => checkChannels(true), '', { disabled: checking }))
-      : h('p', { class: 'wl-note' }, 'Sign in with Google (Settings) and the new videos of the channels you subscribe to appear here, newest first. Nothing else: no recommendations.'),
-    state.feed.length
-      ? h('ul', { class: 'wl-rows' }, state.feed.map((id) => row(id, [planSelect(id, 'feed'), removeBtn(id)], ' feed')))
-      : google.signedIn ? h('p', { class: 'wl-empty' }, 'Nothing new from your channels.') : null);
-}
 const CHECK_EVERY = 3 * 3600 * 1000, FIRST_LOOK = 3 * 86400 * 1000, OVERLAP = 3600 * 1000;   // every 3 hours; the first look 3 days back
 async function checkChannels(byHand = false) {
   if (!google.signedIn || checking) return;
-  checking = true; renderChannels();
+  checking = true; renderPick();
   const started = new Date();
   // each look reaches an hour behind the last one (a video YouTube lists late is still caught; `seen` drops repeats)
   const r = await api.google.feed(new Date(state.lastCheck ? Date.parse(state.lastCheck) - OVERLAP : started - FIRST_LOOK).toISOString());
   checking = false;
-  if (!r.ok) { say(r.error); if (r.signedOut) await refreshGoogle(); renderChannels(); return; }
+  if (!r.ok) { say(r.error); if (r.signedOut) await refreshGoogle(); renderPick(); return; }
   const added = L.addToFeed(state, r.value, started);
   state.lastCheck = started.toISOString();
-  if (added.length || byHand) say(added.length ? `${added.length} new from your channels.` : 'Nothing new from your channels.');
+  if (added.length || byHand) say(added.length ? `${added.length} new from your channels (Pick).` : 'Nothing new from your channels.');
   changed();
 }
 async function refreshGoogle() {
@@ -201,76 +278,12 @@ async function refreshGoogle() {
   if (r.ok) google = r.value;
   if (!google.signedIn) playlists = null;
 }
-
-// ---- Days: the day lists on the left (words and counts), the chosen one on the right ----
-function renderDays() {
-  if (dayView !== 'new' && !dayById(dayView)) dayView = state.days[0]?.id || 'new';
-  const now = new Date();
-  fill($('day-cats'),
-    state.days.map((d) => h('button', {
-      type: 'button', class: `ag-cat${dayView === d.id ? ' on' : ''}${L.dayStatus(d, now) === 'open' ? ' now' : ''}`, 'aria-current': dayView === d.id ? 'true' : null,
-      onclick: () => { dayView = d.id; renderDays(); },
-    }, h('span', {}, h('span', {}, dayLabel(d)), h('span', { class: 'n' }, `${d.items.length}/${state.settings.perDay}`)), h('small', {}, L.dayLine(d, now)))),
-    h('button', { type: 'button', class: `ag-cat wl-new${dayView === 'new' ? ' on' : ''}`, onclick: () => { dayView = 'new'; renderDays(); } }, 'New day'));
-  if (dayView === 'new') renderNewDay(); else renderDay(dayById(dayView));
-}
-
-function renderDay(day) {
-  const now = new Date(), status = L.dayStatus(day, now);
-  const left = day.items.filter((id) => !day.watched.includes(id));
-  let note = null;
-  if (status === 'waiting') note = h('p', { class: 'wl-note' }, `These videos unlock ${L.untilText(L.windowOf(day).opens, now)}. Until then you can only plan.`);
-  if (status === 'open' && left.length) note = h('div', { class: 'wl-row-of' },
-    btn(left.length === day.items.length ? 'Start watching' : 'Continue', () => play(left[0], day.id), 'wl-go'));
-  if (status === 'over') note = h('div', { class: 'wl-note warn' },
-    h('p', { style: 'margin:0 0 10px' }, left.length ? `This day is over. ${left.length} not watched.` : 'This day is over. Everything watched.'),
-    btn(left.length ? 'Close the day (unwatched go back to the inbox)' : 'Close the day', () => { L.closeDay(state, day.id); dayView = null; changed(); }));
-  const actions = (id) => {
-    const watched = day.watched.includes(id);
-    return [
-      watched ? h('span', { class: 'wl-tag' }, 'Watched') : null,
-      status === 'open' ? btn(watched ? 'Again' : 'Play', () => play(id, day.id)) : null,
-      status !== 'over' ? planSelect(id, day.id) : null,
-      removeBtn(id),
-    ];
-  };
-  fill($('day'),
-    h('p', { class: 'wl-h' }, dayLabel(day)),
-    h('p', { class: 'wl-sub' }, `${day.date}, ${L.dayLine(day, now)} · ${day.items.length} of ${state.settings.perDay} videos`),
-    note,
-    day.items.length
-      ? h('ul', { class: 'wl-rows' }, day.items.map((id) => row(id, actions(id), `${day.watched.includes(id) ? ' done' : ''}${playing?.id === id ? ' playing' : ''}`)))
-      : h('p', { class: 'wl-empty' }, `Nothing planned yet. In the inbox, choose "Plan for… ${dayLabel(day)}" next to a video (up to ${state.settings.perDay}).`),
-    status !== 'over' ? h('div', { class: 'wl-row-of', style: 'margin-top:20px' },
-      btn('Delete this day (videos go back to the inbox)', () => { L.closeDay(state, day.id); dayView = null; changed(); }, 'wl-quiet')) : null);
-}
-
-// The new-day form is made once, so a re-render never loses what is typed.
-const nd = (() => {
-  const now = new Date(), next = new Date(now);
-  next.setDate(now.getDate() + ((6 - now.getDay() + 7) % 7 || 7));   // next Saturday as the suggestion
-  return {
-    date: h('input', { type: 'date', value: L.dayKey(next), min: L.dayKey(now) }),
-    from: h('input', { type: 'time', value: '14:00' }),
-    to: h('input', { type: 'time', value: '20:00' }),
-    name: h('input', { type: 'text', placeholder: 'Optional, e.g. Saturday' }),
-  };
-})();
-function renderNewDay() {
-  fill($('day'),
-    h('p', { class: 'wl-h' }, 'New day'),
-    h('p', { class: 'wl-sub' }, `A day holds up to ${state.settings.perDay} videos. They play only on that date, between the two times.`),
-    h('div', { class: 'wl-form' },
-      h('label', {}, 'Date', nd.date), h('label', {}, 'From', nd.from), h('label', {}, 'Until', nd.to), h('label', {}, 'Name', nd.name)),
-    h('div', { class: 'wl-row-of' },
-      btn('Create', () => {
-        const r = L.newDay(state, { date: nd.date.value, from: nd.from.value, to: nd.to.value, name: nd.name.value });
-        if (r.error) { say(r.error); return; }
-        nd.name.value = '';
-        dayView = r.day.id; changed();
-        UB.success(document.querySelector('#day-cats .ag-cat.on'));
-      }, 'wl-go'),
-      btn('Whole day', () => { nd.from.value = ''; nd.to.value = ''; }, 'wl-quiet')));
+// Days that are over close by themselves; what was not watched goes back to Pick.
+function tidy() {
+  const before = state.days.length, back = L.tidyDays(state);
+  if (state.days.length === before) return;
+  if (back) say(`${back} not watched went back to Pick.`);
+  changed();
 }
 
 // ---- Music ----
@@ -302,16 +315,31 @@ function renderMusic() {
       btn('Play all', () => play(L.musicOrder(state.music, shuffle)[0], 'music'), 'wl-go'),
       btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; render(); }, '', { 'aria-pressed': String(shuffle) })) : null,
     state.music.length
-      ? h('ul', { class: 'wl-rows' }, state.music.map((id) => row(id, [btn('Play', () => play(id, 'music')), planSelect(id, 'music'), removeBtn(id)], playing?.id === id ? ' playing' : '')))
-      : h('p', { class: 'wl-empty' }, 'No music yet. In the inbox, choose "Plan for… Music" next to a video.'));
+      ? h('ul', { class: 'wl-cards' }, state.music.map((id) => card(id, [btn('Play', () => play(id, 'music')), planButtons(id, 'music')], playing?.id === id ? ' playing' : '')))
+      : h('p', { class: 'wl-empty' }, 'No music yet. In Pick, one click on "Music" under a video.'));
 }
 
 // ---- Settings ----
+// The window of Today or Saturday: kept for the days laid out from now on, and given to the planned one too.
+function timeInput(k, end) {
+  return h('input', { type: 'time', value: state.settings.times[k][end], 'aria-label': `${k} ${end}`, onchange: (e) => {
+    state.settings.times[k][end] = e.target.value;
+    const day = k === 'today' ? todayDay() : saturdayDay();
+    if (day) day[end] = e.target.value;
+    changed();
+  } });
+}
 function renderSettings() {
   fill($('settings'), h('div', { class: 'wl-set' },
     h('label', {}, 'Videos per day',
       h('input', { type: 'number', min: '1', max: '20', value: String(state.settings.perDay),
         onchange: (e) => { state.settings = L.cleanState({ ...state, settings: { ...state.settings, perDay: e.target.value } }).settings; changed(); } })),
+    h('div', { class: 'ub-section' }, 'When videos play'),
+    ['today', 'saturday'].map((k) => h('label', {}, k === 'today' ? 'Today' : 'Saturday',
+      h('span', { class: 'wl-times' },
+        timeInput(k, 'from'), h('span', { class: 'ag-dim' }, 'until'), timeInput(k, 'to')))),
+    h('p', { class: 'wl-note' }, 'Empty means the whole day. A day already planned changes with it.'),
+    h('div', { class: 'ub-section' }, 'Window'),
     !api.desktop ? null : h('label', {}, 'Window stays in front of other programs',
       btn(state.settings.onTop ? 'On' : 'Off', () => { state.settings.onTop = !state.settings.onTop; api.onTop(state.settings.onTop); changed(); }, '', { 'aria-pressed': String(state.settings.onTop) })),
     h('label', {}, 'Window places and sizes', btn('Reset', () => { UB.reset(); say('Every window is back in its first place.'); })),
@@ -340,7 +368,7 @@ function renderSettings() {
 }
 
 function render() {
-  renderInbox(); renderChannels(); renderDays(); renderMusic(); renderSettings(); renderBar();
+  renderToday(); renderPick(); renderMusic(); renderSettings(); renderBar();
 }
 
 // ---- adding videos ----
@@ -349,7 +377,7 @@ async function addLinks(text) {
   if (!ids.length) { if (String(text).trim()) say('No YouTube link found in that.'); return; }
   const added = L.addToInbox(state, ids);
   if (!added.length) { say(ids.length === 1 ? 'That video is already in a list.' : 'Those videos are already in your lists.'); return; }
-  say(added.length === 1 ? 'Added to the inbox.' : `${added.length} videos added to the inbox.`);
+  say(added.length === 1 ? 'Added to Pick.' : `${added.length} videos added to Pick.`);
   changed();
   fetchInfo(added);
 }
@@ -488,20 +516,19 @@ function renderBar() {
     api.desktop ? btn(mini ? 'Bigger' : 'Mini', () => setMini(!mini)) : null);
 }
 
-// The time windows move on by themselves: the days' "opens in ..." lines, and a day that closes while open.
-// (Not while a field in the Days window is being typed into.)
+// The time windows move on by themselves: "opens in ..." lines, a day that closes. Not while a field is being typed in.
 setInterval(() => {
-  const typing = $('w-days').contains(document.activeElement) && document.activeElement.tagName !== 'BUTTON';
-  if (!typing) renderDays();
-  if (!$('w-channels').contains(document.activeElement)) renderChannels();
+  tidy();
+  const typing = document.activeElement?.matches?.('input, select');
+  if (!typing) { renderToday(); renderPick(); }
   renderBar();
 }, 30000);
 
-// Escape leaves the mini player and video only first; otherwise it is the menu's (back to the menu, close the menu).
+// Escape closes the bigger look first, then leaves the mini player and video only; otherwise it is the menu's.
 addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || !(mini || only)) return;
+  if (e.key !== 'Escape' || !(mini || only || !previewEl.hidden)) return;
   e.stopImmediatePropagation();
-  if (mini) setMini(false); else setOnly(false);
+  if (!previewEl.hidden) hidePreview(); else if (mini) setMini(false); else setOnly(false);
 }, true);
 document.addEventListener('keydown', (e) => {
   if (e.key !== ' ' || !playing || (e.target.closest && e.target.closest('input, textarea, select, button'))) return;
@@ -512,10 +539,12 @@ api.onKey((action) => { if (action === 'toggle') toggle(); else if (action === '
 // ---- start: the lists, the menu open ----
 state = L.cleanState(await api.load());   // also an older file without the newer parts
 await refreshGoogle();
+tidy();
 render();
 menu.open();
+setTimeout(() => menu.expand(item('w-today')), 420);   // the app opens on Today
 const today = openDay();
-if (today) say(`${dayLabel(today)} is open: ${today.items.length - today.watched.length} to watch.`);
+if (today && today.items.length > today.watched.length) say(`${dayLabel(today)} is open: ${today.items.length - today.watched.length} to watch.`);
 fetchInfo(Object.keys(state.videos).filter((id) => !state.videos[id].title));
 await pull();   // the lists from the other devices first
 // The channels: now if the last look is older than 3 hours, then every 3 hours (while the app is open).

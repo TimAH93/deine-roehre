@@ -30,23 +30,30 @@ Beim ersten Start lädt es Electron (etwa 100 MB, nur einmal).
 
 ## Was es kann
 
-- **Inbox:** YouTube-Links einfügen (ins Feld oder Strg+V irgendwo). Titel
-  und Kanal kommen von YouTube. Aus der Inbox spielt nichts.
-- **Channels:** mit Google angemeldet: die neuen Videos der Kanäle, die du
-  abonniert hast, neueste zuerst, alle 3 Stunden von selbst. Kein Algorithmus,
-  keine Empfehlungen. Von hier „Plan for…“ oder „Remove“ (kommt nicht wieder).
-- **Days:** ein Tag mit Datum und Zeitfenster (Vorschlag: nächster Samstag
-  14–20 Uhr). „Plan for…“ legt ein Video hinein, höchstens 3 pro Tag
-  (einstellbar). Die Videos spielen nur in diesem Zeitfenster. Ist der Tag
-  vorbei, gehen nicht gesehene Videos zurück in die Inbox.
+Vier Fenster im Menü:
+
+- **Today** (öffnet sich beim Start): deine Videos für heute, ein großer
+  Knopf **Watch**. Darunter die kommenden Tage (Samstag und andere).
+- **Pick:** alles, was infrage kommt, als Kacheln: deine eingefügten Links
+  (**Mine**) und, mit Google angemeldet, die neuen Videos deiner Abos
+  (**Channels**, neueste zuerst, alle 3 Stunden von selbst). Links einfügen
+  ins Feld oder mit Strg+V irgendwo. Unter jeder Kachel ein Klick:
+  **Today**, **Saturday** oder **Music**. Ein Klick aufs Bild zeigt es groß,
+  ohne abzuspielen. Aus Pick spielt nichts.
 - **Music:** spielt jederzeit, nacheinander, in Schleife, auf Wunsch gemischt.
-  Mit Google angemeldet: „Import from YouTube…“ holt eine deiner Playlists oder
+  Mit Google angemeldet holt „Import from YouTube…“ eine deiner Playlists oder
   deine „Liked videos“ hierher.
-- **Player:** ein eigenes Fenster, beliebig groß. „Video only“ zeigt nur das
-  Video, „Mini“ einen kleinen Player unten rechts, immer im Vordergrund.
-  Leertaste pausiert, die Medientasten der Tastatur gehen auch.
-- **Keine Empfehlungen:** Die App kennt nur deine Videos. Pause- und
-  Endbildschirm von YouTube werden abgedeckt.
+- **Settings:** wann Today und Samstag spielen (leer = ganzer Tag), wie viele
+  Videos pro Tag (3), Google-Konto.
+
+Tage legen sich selbst an, wenn du das erste Video dafür wählst. Ist ein Tag
+vorbei, gehen nicht gesehene Videos von selbst zurück nach Pick. Einen anderen
+Tag als heute oder Samstag legst du unten in Today an („Plan another day…“).
+
+Der **Player** ist ein eigenes Fenster, beliebig groß. „Video only“ zeigt nur
+das Video, „Mini“ einen kleinen Player unten rechts, immer im Vordergrund (am
+PC). Leertaste pausiert, die Medientasten der Tastatur gehen auch. Pause- und
+Endbildschirm von YouTube werden abgedeckt, also keine Empfehlungen.
 
 ## Mit Google anmelden (einmal einrichten, etwa 15 Minuten)
 

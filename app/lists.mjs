@@ -12,7 +12,9 @@
 //   days:   [{ id, name, date, from, to, items: [id], watched: [id] }]
 //           a day list plays only on its date between from and to ("HH:MM"; empty = the whole day)
 //   music:  [id]                                      plays any time, in order or shuffled, in a loop
-//   settings: { perDay, onTop }                      perDay: how many videos a day list may hold
+//   settings: { perDay, onTop, times }               perDay: how many videos a day list may hold;
+//                                                     times: { today: {from, to}, saturday: {from, to} }, the windows
+//                                                     the two days get that lay themselves out (planFor)
 
 export const DEFAULT_PER_DAY = 3;
 export const FEED_MAX = 300, SEEN_MAX = 5000;
@@ -49,7 +51,7 @@ export const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 export const thumbUrl = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 
 export function emptyState() {
-  return { updated: '', videos: {}, inbox: [], feed: [], seen: [], lastCheck: '', days: [], music: [], settings: { perDay: DEFAULT_PER_DAY, onTop: false } };
+  return { updated: '', videos: {}, inbox: [], feed: [], seen: [], lastCheck: '', days: [], music: [], settings: { perDay: DEFAULT_PER_DAY, onTop: false, times: { today: { from: '', to: '' }, saturday: { from: '', to: '' } } } };
 }
 
 // A saved file from any version, made whole (missing parts filled in, unknown ids dropped).
@@ -72,6 +74,7 @@ export function cleanState(raw) {
   const set = r.settings || {};
   s.settings.perDay = Math.max(1, Math.min(20, Math.round(Number(set.perDay) || DEFAULT_PER_DAY)));
   s.settings.onTop = !!set.onTop;
+  for (const k of ['today', 'saturday']) s.settings.times[k] = { from: time(set.times?.[k]?.from), to: time(set.times?.[k]?.to) };
   return s;
 }
 // Which copy of the lists to keep when two devices meet: the one changed last (a copy never changed counts as oldest).
@@ -230,6 +233,40 @@ export function moveTo(state, id, target, now = new Date()) {
   takeOut(state, id);
   day.items.push(id);
   return {};
+}
+
+// The Saturday the "Saturday" button means: the next one after today (on a Saturday, "Today" is that one).
+export function nextSaturday(now = new Date()) {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7));
+  return dayKey(d);
+}
+
+// One click: a video to 'today', 'saturday' (each day lays itself out with the window from settings.times the first
+// time something goes there), 'music', 'inbox', or an existing day's id.
+export function planFor(state, id, target, now = new Date()) {
+  if (target === 'today' || target === 'saturday') {
+    const date = target === 'today' ? dayKey(now) : nextSaturday(now);
+    let day = state.days.find((d) => d.date === date);
+    if (!day) {
+      const r = newDay(state, { date, ...state.settings.times[target] }, now);
+      if (r.error) return { error: target === 'today' ? `Today's time is over (until ${state.settings.times.today.to}).` : r.error };
+      day = r.day;
+    }
+    target = day.id;
+  }
+  return moveTo(state, id, target, now);
+}
+
+// Days that are over close by themselves: what was not watched goes back to the inbox. Returns how many went back.
+export function tidyDays(state, now = new Date()) {
+  let back = 0;
+  for (const d of [...state.days]) {
+    if (dayStatus(d, now) !== 'over') continue;
+    back += d.items.filter((id) => !d.watched.includes(id)).length;
+    closeDay(state, d.id);
+  }
+  return back;
 }
 
 // Remove a video completely.

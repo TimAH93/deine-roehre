@@ -88,7 +88,7 @@ test('a saved file is made whole: bad ids, unknown videos and bad settings are d
   assert.equal(s.days.length, 1);
   assert.equal(s.days[0].from, '');
   assert.deepEqual(s.days[0].items, [A]);
-  assert.deepEqual(s.settings, { perDay: 20, onTop: true });   // the old theme setting is gone (Archon is black only)
+  assert.deepEqual(s.settings, { perDay: 20, onTop: true, times: { today: { from: '', to: '' }, saturday: { from: '', to: '' } } });   // the old theme setting is gone (Archon is black only)
   assert.deepEqual(L.cleanState(null), L.emptyState());
 });
 
@@ -157,4 +157,36 @@ test('a device joining: the shared lists win, its own extra videos go to their i
   assert.deepEqual(s.inbox, [A, C]);
   assert.deepEqual(s.music, [B]);
   assert.equal(s.updated, now.toISOString());
+});
+
+test('one click: Today and Saturday lay themselves out with the windows from settings', () => {
+  const s = L.emptyState(), fri = at('2026-10-09T10:00');      // a Friday
+  s.settings.times.saturday = { from: '14:00', to: '20:00' };
+  L.addToInbox(s, [A, B, C], {}, fri);
+  assert.equal(L.nextSaturday(fri), '2026-10-10');
+  assert.equal(L.nextSaturday(at('2026-10-10T10:00')), '2026-10-17');   // on a Saturday: the next one
+  assert.deepEqual(L.planFor(s, A, 'today', fri), {});
+  assert.deepEqual(L.planFor(s, B, 'saturday', fri), {});
+  assert.deepEqual(L.planFor(s, C, 'saturday', fri), {});
+  assert.equal(s.days.length, 2);
+  const sat = s.days.find((d) => d.date === '2026-10-10');
+  assert.deepEqual([sat.from, sat.to, sat.items], ['14:00', '20:00', [B, C]]);
+  assert.equal(L.canPlay(s, A, fri), true);                   // today, whole day
+  assert.equal(L.canPlay(s, B, fri), false);
+  s.settings.times.today = { from: '', to: '09:00' };
+  L.closeDay(s, s.days.find((d) => d.date === '2026-10-09').id);
+  assert.match(L.planFor(s, A, 'today', fri).error, /Today's time is over \(until 09:00\)/);
+  assert.deepEqual(L.cleanState({ settings: { times: { today: { from: '18:00', to: 'x' } } } }).settings.times,
+    { today: { from: '18:00', to: '' }, saturday: { from: '', to: '' } });
+});
+
+test('days that are over close by themselves; unwatched videos go back', () => {
+  const s = L.emptyState(), fri = at('2026-10-09T10:00');
+  L.addToInbox(s, [A, B], {}, fri);
+  L.planFor(s, A, 'today', fri); L.planFor(s, B, 'today', fri);
+  L.markWatched(s, s.days[0].id, A);
+  assert.equal(L.tidyDays(s, fri), 0);
+  assert.equal(L.tidyDays(s, at('2026-10-10T00:01')), 1);
+  assert.deepEqual(s.days, []);
+  assert.deepEqual(s.inbox, [B]);
 });
