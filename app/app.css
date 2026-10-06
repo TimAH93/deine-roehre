@@ -146,6 +146,26 @@ body.wl-only .wl-bar .ag-title, body.wl-only .wl-bar .now small, body.wl-only .w
 body.wl-only .wl-bar button { padding: 2px 8px; }
 body.wl-mini .wl-bar .notmini { display: none; }
 
+/* ---- the music player: under the video in the player window; beside it in the small music player ---- */
+.wl-mp { display: none; }
+body.wl-music .wl-mp { display: flex; flex-direction: column; gap: 6px; padding: 4px 14px 12px; min-width: 0; }
+body.wl-only:not(.wl-mini) .wl-mp { display: none; }   /* a song in the full window: just the video */
+.mp-now { min-width: 0; }
+.mp-title { color: #fff; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-artist { color: var(--ag-text-dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-time { display: flex; align-items: center; gap: 8px; }
+.mp-time input { flex: 1; min-width: 0; accent-color: var(--ag-ember); height: 18px; }
+.mp-clock { color: var(--ag-text-dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mp-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+.mp-btns button { padding: 4px 10px; font-size: 12px; }
+.mp-next { color: var(--ag-text-dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the small music player (PC): the video at YouTube's least size on the left, the controls on the right, no bar */
+body.wl-mini.wl-music #w-player { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: minmax(200px, 1fr); }
+body.wl-mini.wl-music .wl-bar, body.wl-mini.wl-music .wl-reveal { display: none !important; }
+body.wl-mini.wl-music .wl-screen { grid-column: 1; grid-row: 1; min-width: 200px; min-height: 200px; }
+body.wl-mini.wl-music .wl-mp { grid-column: 2; grid-row: 1; justify-content: center; padding: 10px 14px; gap: 8px; }
+body.wl-mini.wl-music .wl-cover p { font-size: 12px; }
+
 .wl-toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); margin: 0; padding: 8px 14px; z-index: 900; font-size: 13px;
   background: rgba(2, 1, 1, 0.9); border: 1px solid rgba(255, 74, 28, 0.55); border-radius: 3px; box-shadow: 0 0 14px rgba(255, 74, 28, 0.16);
   opacity: 0; pointer-events: none; transition: opacity 160ms var(--ag-ease); max-width: calc(100vw - 32px); }
@@ -159,6 +179,7 @@ body.wl-mini .wl-bar .notmini { display: none; }
   .wl-list, #w-settings { left: 6px !important; top: 72px !important; width: calc(100vw - 12px) !important; height: calc(100dvh - 78px - env(safe-area-inset-bottom)) !important; }
   #w-player:not([hidden]) { left: 0 !important; right: 0 !important; top: auto !important; bottom: 0 !important; width: 100vw !important;
     height: min(calc(56.25vw + 96px), 70dvh) !important; padding-bottom: env(safe-area-inset-bottom); }
+  body.wl-music:not(.wl-only) #w-player:not([hidden]) { height: min(calc(56.25vw + 220px), 85dvh) !important; }
   .ub-window .ub-resize { display: none; }
   .ag-window input, .ag-window select, .ag-window button { font-size: 16px; }   /* iPhone zooms in on smaller fields */
   .wl-bar button { font-size: 14px; padding: 5px 10px; }

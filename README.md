@@ -41,6 +41,11 @@ Vier Fenster im Menü:
   **Today**, **Saturday** oder **Music**. Ein Klick aufs Bild zeigt es groß,
   ohne abzuspielen. Aus Pick spielt nichts.
 - **Music:** spielt jederzeit, nacheinander, in Schleife, auf Wunsch gemischt.
+  Am PC startet „Play all“ den **Musik-Mini-Player** unten rechts, immer im
+  Vordergrund: links das kleine Video (YouTube verlangt, dass es sichtbar
+  bleibt), rechts Titel, Interpret, ein Balken zum Spulen, Prev / Pause /
+  Next / Shuffle und was als Nächstes kommt. Escape oder „Bigger“ macht ihn
+  groß, die Musik läuft weiter. Am Handy steht das Musikfeld unter dem Video.
   Mit Google angemeldet holt „Import from YouTube…“ eine deiner Playlists oder
   deine „Liked videos“ hierher.
 - **Settings:** wann Today und Samstag spielen (leer = ganzer Tag), wie viele

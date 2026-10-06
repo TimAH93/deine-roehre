@@ -51,7 +51,9 @@ async function findEmblem() {
   found.sort((a, b) => (a.stem !== 'archon-grid') - (b.stem !== 'archon-grid') || order.indexOf(a.ext) - order.indexOf(b.ext) || a.file.localeCompare(b.file));
   return found[0]?.file || null;
 }
-const MINI = { width: 360, height: 250 };   // the mini player: the video and one row of controls
+// The mini player: the video and one row of controls; for music, the small video beside the music controls.
+const MINI = { video: { width: 360, height: 250 }, music: { width: 520, height: 252 } };   // music: 200 px of video (YouTube's least) and the controls
+const MINI_MIN = { video: [240, 170], music: [440, 240] };
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -137,16 +139,18 @@ async function createWindow(url) {
   win.loadURL(url);
 }
 
-function setMini(on) {
+function setMini(on, kind = 'video') {
   if (!win || on === mini) return;
-  if (on && win.isFullScreen()) { win.once('leave-full-screen', () => setMini(true)); win.setFullScreen(false); return; }
+  if (!MINI[kind]) kind = 'video';
+  if (on && win.isFullScreen()) { win.once('leave-full-screen', () => setMini(true, kind)); win.setFullScreen(false); return; }
   if (on) {
     normalBounds = win.isMaximized() ? win.getNormalBounds() : win.getBounds();
     if (win.isMaximized()) win.unmaximize();
     mini = true;
     const a = screen.getDisplayMatching(normalBounds).workArea;
-    win.setMinimumSize(240, 170);
-    win.setBounds({ x: a.x + a.width - MINI.width - 16, y: a.y + a.height - MINI.height - 16, ...MINI });
+    win.setMinimumSize(...MINI_MIN[kind]);
+    const size = MINI[kind];
+    win.setBounds({ x: a.x + a.width - size.width - 16, y: a.y + a.height - size.height - 16, ...size });
     win.setAlwaysOnTop(true, 'floating');
   } else {
     mini = false;
@@ -166,7 +170,7 @@ ipcMain.handle('wl:load', async () => {
 ipcMain.handle('wl:save', async (_e, state) => { await writeJson(dataFile(), cleanState(state)); });
 ipcMain.handle('wl:info', (_e, ids) => videoInfo((Array.isArray(ids) ? ids : []).filter((id) => /^[A-Za-z0-9_-]{11}$/.test(id))));
 ipcMain.on('wl:onTop', (_e, on) => { onTop = !!on; if (win && !mini) win.setAlwaysOnTop(onTop, 'floating'); });
-ipcMain.on('wl:mini', (_e, on) => setMini(!!on));
+ipcMain.on('wl:mini', (_e, on, kind) => setMini(!!on, String(kind || 'video')));
 ipcMain.on('wl:watching', (_e, on) => { watching = !!on; });
 ipcMain.on('wl:fullscreen', () => { if (win) win.setFullScreen(!win.isFullScreen()); });
 // Google (google.mjs): every call answers { ok, value } or { ok: false, error, signedOut }, so the page can say why.

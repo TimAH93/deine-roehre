@@ -427,8 +427,11 @@ async function play(id, from) {
   if (!L.canPlay(state, id)) { say('This video is locked right now.'); return; }
   playing = { id, from, queue: queueFor(from, id) };
   paused = false; hideCover();
+  document.body.classList.toggle('wl-music', from === 'music');
   showPlayer();
-  if (!mini && !only) watch(true);   // watching: the video fills the window
+  // A video fills the window; music goes to the small music player (on the PC; in a browser, the player window).
+  if (from === 'music') { if (api.desktop && !mini && !only) setMini(true); }
+  else if (!mini && !only) watch(true);
   render();
   const p = await loadYouTube();
   p.loadVideoById(id);
@@ -437,6 +440,7 @@ function stopPlaying() {
   if (yt) yt.stopVideo();
   playing = null; paused = false; hideCover();
   setOnly(false); setMini(false);
+  document.body.classList.remove('wl-music');
   playerWin.hidden = true;
 }
 // The next video: music loops; a day moves on to the next one not yet watched, while its time is still open.
@@ -503,8 +507,9 @@ function watch(on) {
   if (on) { peekBar(2500); say('Esc: the menu · F11: full screen · Space: pause'); }
 }
 function leaveWatching() {
+  const music = playing?.from === 'music';   // music keeps playing; a video pauses
   if (mini) setMini(false);
-  if (yt && playing && yt.getPlayerState?.() === YT.PlayerState.PLAYING) yt.pauseVideo();
+  if (!music && yt && playing && yt.getPlayerState?.() === YT.PlayerState.PLAYING) yt.pauseVideo();
   setOnly(false);
   if (!menu.isOpen) menu.open();
 }
@@ -521,25 +526,63 @@ addEventListener('blur', () => setTimeout(() => {
   const a = document.activeElement;
   if (playing && document.hasFocus() && a?.tagName === 'IFRAME') a.blur();
 }, 0));
+// Every window's place and size before the small player: the tiny app window squeezes them into its corner.
+let beforeMini = null;
 function setMini(on) {
   if (mini === on) return;
-  mini = on; api.mini(on); api.watching(on || only);
+  const keys = ['left', 'top', 'right', 'bottom', 'width', 'height'], wins = [...document.querySelectorAll('.ub-window')];
+  if (on) beforeMini = wins.map((w) => [w, Object.fromEntries(keys.map((k) => [k, w.style[k]]))]);
+  else if (beforeMini) {
+    const back = beforeMini; beforeMini = null;
+    setTimeout(() => { for (const [w, st] of back) for (const k of keys) w.style[k] = st[k]; }, 350);   // once the window is big again
+  }
+  mini = on; api.mini(on, playing?.from === 'music' ? 'music' : 'video'); api.watching(on || only);
   document.body.classList.toggle('wl-mini', on);
   document.body.classList.toggle('wl-only', on || only);
   renderBar();
 }
 
+// ---- the music player: the small video beside title, a bar to jump in the song, Prev / Pause / Next ----
+const mp = $('mp');
+const seek = h('input', { type: 'range', min: '0', max: '1', step: '1', value: '0', 'aria-label': 'Position in the song' });
+const clock = h('span', { class: 'mp-clock' }, '0:00');
+let seeking = false;
+seek.addEventListener('input', () => { seeking = true; clock.textContent = `${mmss(seek.value)} / ${mmss(seek.max)}`; });
+seek.addEventListener('change', () => { if (yt?.seekTo) yt.seekTo(Number(seek.value), true); seeking = false; });
+const mmss = (t) => { t = Math.max(0, Math.round(Number(t) || 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+function renderMusicPanel() {
+  if (!playing || playing.from !== 'music') { fill(mp); return; }
+  const next = nextId(1), v = state.videos[playing.id];
+  fill(mp,
+    h('div', { class: 'mp-now' }, h('div', { class: 'mp-title', title: title(playing.id) }, title(playing.id)), h('div', { class: 'mp-artist' }, v?.channel || '')),
+    h('div', { class: 'mp-time' }, seek, clock),
+    h('div', { class: 'mp-btns' },
+      btn('Prev', () => skip(-1)), btn(paused ? 'Play' : 'Pause', toggle, 'wl-go'), btn('Next', () => skip(1)),
+      btn(shuffle ? 'Shuffle on' : 'Shuffle', () => { shuffle = !shuffle; playing.queue = L.musicOrder(state.music, shuffle, playing.id); render(); }, '', { 'aria-pressed': String(shuffle) }),
+      api.desktop && mini ? btn('Bigger', () => setMini(false), 'wl-quiet') : null),
+    next && next !== playing.id ? h('div', { class: 'mp-next', title: title(next) }, 'Next: ' + title(next)) : null);
+}
+setInterval(() => {   // the bar and the clock follow the song
+  if (!playing || playing.from !== 'music' || !yt?.getDuration || seeking) return;
+  const dur = yt.getDuration() || 0, cur = yt.getCurrentTime() || 0;
+  seek.max = String(Math.max(1, Math.floor(dur))); seek.value = String(Math.floor(cur));
+  clock.textContent = `${mmss(cur)} / ${mmss(dur)}`;
+}, 500);
+
 function renderBar() {
+  renderMusicPanel();
   if (!playing) { fill(bar); return; }
   const isMusic = playing.from === 'music';
   const from = isMusic ? 'Music' : dayLabel(dayById(playing.from) || { date: L.dayKey() });
   fill(bar,
     h('h2', { class: 'ag-title' }, 'Player'),
     h('div', { class: 'now', title: title(playing.id) }, title(playing.id), h('small', {}, from)),
-    isMusic || nextId(-1) ? btn('Previous', () => skip(-1), isMusic ? null : 'wide') : null,
-    btn(paused ? 'Play' : 'Pause', toggle),
-    nextId(1) ? btn('Next', () => skip(1)) : null,
-    isMusic ? btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; playing.queue = L.musicOrder(state.music, shuffle, playing.id); render(); }, 'wide notmini', { 'aria-pressed': String(shuffle) }) : null,
+    // music has its controls in the music player below; a video has them here
+    isMusic ? null : [
+      nextId(-1) ? btn('Previous', () => skip(-1), 'wide') : null,
+      btn(paused ? 'Play' : 'Pause', toggle),
+      nextId(1) ? btn('Next', () => skip(1)) : null],
+    isMusic && only ? [btn(paused ? 'Play' : 'Pause', toggle), btn('Next', () => skip(1))] : null,
     mini ? null : only ? btn('Menu (Esc)', leaveWatching) : btn('Full window', () => watch(true)),
     api.desktop ? btn(mini ? 'Bigger' : 'Mini', () => setMini(!mini)) : null);
 }
