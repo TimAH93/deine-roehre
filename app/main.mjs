@@ -191,6 +191,7 @@ ipcMain.handle('g:signOut', answer(() => google.signOut()));
 ipcMain.handle('g:feed', answer(async (since) => google.uploads(await google.subscriptions(), String(since || ''))));
 ipcMain.handle('g:playlists', answer(() => google.playlists()));
 ipcMain.handle('g:playlist', answer((id) => google.playlistVideos(String(id || ''))));
+ipcMain.handle('g:categories', answer((ids) => google.categories(Array.isArray(ids) ? ids.map(String) : [])));
 ipcMain.handle('g:driveLoad', answer(async () => { const raw = await google.driveLoad(); return raw ? cleanState(raw) : null; }));
 ipcMain.handle('g:driveSave', answer((state) => google.driveSave(cleanState(state))));
 ipcMain.on('wl:youtube', (_e, id) => { if (/^[A-Za-z0-9_-]{11}$/.test(id)) shell.openExternal(watchUrl(id)); });

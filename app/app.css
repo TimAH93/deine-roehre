@@ -170,6 +170,9 @@ body.wl-mini.wl-music .wl-bar, body.wl-mini.wl-music .wl-reveal { display: none 
 body.wl-mini.wl-music .wl-screen { grid-column: 1; grid-row: 1; min-width: 200px; min-height: 200px; }
 body.wl-mini.wl-music .wl-mp { grid-column: 2; grid-row: 1; justify-content: center; padding: 10px 14px; gap: 8px; }
 body.wl-mini.wl-music .wl-cover p { font-size: 12px; }
+/* the return control in the player (watching, mini): back to the menu */
+.wl-bar .wl-back { flex: none; }
+.wl-mp .wl-back { align-self: flex-start; margin-bottom: -2px; }
 
 .wl-toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); margin: 0; padding: 8px 14px; z-index: 900; font-size: 13px;
   background: rgba(2, 1, 1, 0.9); border: 1px solid rgba(255, 74, 28, 0.55); border-radius: 3px; box-shadow: 0 0 14px rgba(255, 74, 28, 0.16);

@@ -117,4 +117,4 @@ async function token() {
   } catch (e) { if (e.signedOut) await fs.rm(tokenFile(), { force: true }); throw e; }
 }
 const api = makeApi(token);
-export const { subscriptions, uploads, playlists, playlistVideos, driveLoad, driveSave } = api;
+export const { subscriptions, uploads, playlists, playlistVideos, categories, driveLoad, driveSave } = api;

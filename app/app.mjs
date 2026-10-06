@@ -296,21 +296,47 @@ async function loadPlaylists() {
   fill(listPick, playlists.map((p) => h('option', { value: p.id }, p.count == null ? p.title : `${p.title} (${p.count})`)));
   renderMusic();
 }
+// YouTube files every video under one category; '10' is Music. "Only music" keeps the rest out (liked videos are
+// songs and everything else together).
+const MUSIC = '10';
+let onlyMusic = true;
+async function musicOnly(items) {
+  const r = await api.google.categories(items.map((v) => v.id));
+  if (!r.ok) { say(r.error); return null; }
+  return items.filter((v) => r.value[v.id] === MUSIC);
+}
 async function importPlaylist() {
   const p = playlists?.find((x) => x.id === listPick.value);
   if (!p) return;
   say(`Fetching "${p.title}"…`);
   const r = await api.google.playlist(p.id);
   if (!r.ok) { say(r.error); return; }
-  const n = L.importToMusic(state, r.value);
-  say(`"${p.title}": ${n} in Music.`);
+  const songs = onlyMusic ? await musicOnly(r.value) : r.value;
+  if (!songs) return;
+  const n = L.importToMusic(state, songs);
+  const left = r.value.length - songs.length;
+  say(onlyMusic ? `"${p.title}": ${n} ${n === 1 ? 'song' : 'songs'} in Music (${left} ${left === 1 ? 'video' : 'videos'} that ${left === 1 ? 'is' : 'are'} not music left out).` : `"${p.title}": ${n} in Music.`);
   changed();
+}
+// What is in Music but not filed as music on YouTube goes to Pick (nothing is deleted).
+async function sortOutNonMusic() {
+  if (!state.music.length) return;
+  say('Looking at what is music…');
+  const r = await api.google.categories(state.music);
+  if (!r.ok) { say(r.error); return; }
+  const out = state.music.filter((id) => r.value[id] && r.value[id] !== MUSIC);
+  for (const id of out) L.moveTo(state, id, 'inbox');
+  say(out.length ? `${out.length} ${out.length === 1 ? 'video that is' : 'videos that are'} not music went to Pick.` : 'Everything in Music is music.');
+  if (out.length) changed();
 }
 function renderMusic() {
   fill($('music'),
     h('p', { class: 'wl-sub' }, 'Plays any time, one after another, in a loop. "Mini" keeps a small player in the corner of the screen.'),
     google.signedIn ? h('div', { class: 'wl-row-of' },
-      playlists ? [listPick, btn('Import into Music', importPlaylist)] : btn('Import from YouTube…', loadPlaylists)) : null,
+      playlists ? [listPick,
+        btn(onlyMusic ? 'Only music: on' : 'Only music: off', () => { onlyMusic = !onlyMusic; renderMusic(); }, '', { 'aria-pressed': String(onlyMusic) }),
+        btn('Import into Music', importPlaylist)] : btn('Import from YouTube…', loadPlaylists),
+      state.music.length ? btn('Move non-music to Pick', sortOutNonMusic, 'wl-quiet') : null) : null,
     state.music.length ? h('div', { class: 'wl-row-of' },
       btn('Play all', () => play(L.musicOrder(state.music, shuffle)[0], 'music'), 'wl-go'),
       btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; render(); }, '', { 'aria-pressed': String(shuffle) })) : null,
@@ -561,6 +587,7 @@ function renderMusicPanel() {
   if (!playing || playing.from !== 'music') { fill(mp); return; }
   const next = nextId(1), v = state.videos[playing.id];
   fill(mp,
+    mini ? h('button', { type: 'button', class: 'ub-return ag-return wl-back', 'aria-label': 'Back to the menu', title: 'Back to the menu (Esc); the music plays on', onclick: leaveWatching }) : null,
     h('div', { class: 'mp-now' }, h('div', { class: 'mp-title', title: title(playing.id) }, title(playing.id)), h('div', { class: 'mp-artist' }, v?.channel || '')),
     h('div', { class: 'mp-time' }, seek, clock),
     h('div', { class: 'mp-btns' },
@@ -582,6 +609,7 @@ function renderBar() {
   const isMusic = playing.from === 'music';
   const from = isMusic ? 'Music' : dayLabel(dayById(playing.from) || { date: L.dayKey() });
   fill(bar,
+    only || mini ? h('button', { type: 'button', class: 'ub-return ag-return wl-back', 'aria-label': 'Back to the menu', title: 'Back to the menu (Esc)', onclick: leaveWatching }) : null,
     h('h2', { class: 'ag-title' }, 'Player'),
     h('div', { class: 'now', title: title(playing.id) }, title(playing.id), h('small', {}, from)),
     // music has its controls in the music player below; a video has them here

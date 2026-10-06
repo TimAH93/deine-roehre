@@ -104,6 +104,17 @@ export function makeApi(token) {
     return out;
   }
 
+  // Each video's YouTube category: { id: categoryId }; '10' is Music. A gone video is left out.
+  async function categories(ids) {
+    const out = {};
+    ids = [...new Set(ids.filter((id) => ID.test(id)))];
+    for (let i = 0; i < ids.length; i += 50) {
+      const j = await get('videos', { id: ids.slice(i, i + 50).join(','), part: 'snippet' });
+      for (const v of j.items || []) out[v.id] = String(v.snippet?.categoryId || '');
+    }
+    return out;
+  }
+
   // ---- the shared lists in Drive's app data folder ----
   async function fileId() {
     const url = `${DRIVE}?spaces=appDataFolder&fields=files(id,modifiedTime)&q=${encodeURIComponent(`name='${FILE}'`)}`;
@@ -124,5 +135,5 @@ export function makeApi(token) {
     await call(`${UPLOAD}?uploadType=multipart`, { method: 'POST', headers: { 'content-type': `multipart/related; boundary=${b}` }, body: multipart });
   }
 
-  return { subscriptions, uploads, playlists, playlistVideos, videoInfo, driveLoad, driveSave };
+  return { subscriptions, uploads, playlists, playlistVideos, videoInfo, categories, driveLoad, driveSave };
 }

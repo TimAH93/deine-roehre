@@ -45,9 +45,12 @@ Vier Fenster im Menü:
   Vordergrund: links das kleine Video (YouTube verlangt, dass es sichtbar
   bleibt), rechts Titel, Interpret, ein Balken zum Spulen, Prev / Pause /
   Next / Shuffle und was als Nächstes kommt. Escape oder „Bigger“ macht ihn
-  groß, die Musik läuft weiter. Am Handy steht das Musikfeld unter dem Video.
+  groß, die Musik läuft weiter; ebenso der kleine Zurück-Knopf ‹ oben. Am
+  Handy steht das Musikfeld unter dem Video.
   Mit Google angemeldet holt „Import from YouTube…“ eine deiner Playlists oder
-  deine „Liked videos“ hierher.
+  deine „Liked videos“ hierher. „Only music“ (an) nimmt nur, was YouTube als
+  Musik einordnet; „Move non-music to Pick“ räumt Music nachträglich auf
+  (nichts wird gelöscht).
 - **Settings:** wann Today und Samstag spielen (leer = ganzer Tag), wie viele
   Videos pro Tag (3), Google-Konto.
 
