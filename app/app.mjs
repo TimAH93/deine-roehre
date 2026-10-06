@@ -461,7 +461,9 @@ function skip(step) {
 function stateChange(s) {
   if (!playing) return;
   if (s === YT.PlayerState.PLAYING) { paused = false; hideCover(); }
-  else if (s === YT.PlayerState.PAUSED) { paused = true; showCover(h('p', { class: 'big' }, 'Paused'), h('p', { class: 'ag-dim' }, 'Click or press Space to continue.')); }
+  // Paused: the picture stays fully visible (text in it readable); a clear layer with one Play button in the middle
+  // keeps YouTube's "More videos" from being clicked.
+  else if (s === YT.PlayerState.PAUSED) { paused = true; showCover('clear', h('span', { class: 'wl-play', 'aria-label': 'Play' }, 'Play')); }
   else if (s === YT.PlayerState.ENDED) {
     if (playing.from !== 'music') { L.markWatched(state, playing.from, playing.id); changed(); }
     skip(1);
@@ -489,8 +491,13 @@ function playError(code) {
       nextId(1) ? btn('Next video', (e) => { e.stopPropagation(); skip(1); }, 'wl-go') : null,
       btn('Close the player', (e) => { e.stopPropagation(); stopPlaying(); render(); })));
 }
-function showCover(...kids) { fill(cover, h('div', {}, kids)); cover.hidden = false; }
-function hideCover() { cover.hidden = true; }
+function showCover(...kids) {
+  const clear = kids[0] === 'clear';
+  if (clear) kids.shift();
+  cover.classList.toggle('clear', clear);
+  fill(cover, h('div', {}, kids)); cover.hidden = false;
+}
+function hideCover() { cover.hidden = true; cover.classList.remove('clear'); }
 cover.addEventListener('click', () => { if (paused && yt) yt.playVideo(); });
 function toggle() {
   if (!yt || !playing) return;

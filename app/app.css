@@ -127,6 +127,11 @@ body { overflow: hidden; background: radial-gradient(ellipse at 30% 20%, #0d0909
 /* over the player when it is paused, finished or refused: YouTube's "more videos" and end screen never show */
 .wl-cover { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; text-align: center; padding: 16px; background: rgba(4, 3, 3, 0.94); cursor: pointer; }
 .wl-cover[hidden] { display: none; }
+/* paused: no darkening, the picture stays as it is; only a small Play in the middle */
+.wl-cover.clear { background: transparent; }
+.wl-play { display: inline-block; padding: 8px 22px; font-size: 15px; font-weight: 600; color: #fff; border: 1px solid var(--ag-ember);
+  border-radius: 3px; background: rgba(4, 3, 3, 0.55); box-shadow: 0 0 12px rgba(255, 74, 28, 0.25); transition: background-color 140ms var(--ag-ease); }
+.wl-cover.clear:hover .wl-play { background: rgba(4, 3, 3, 0.75); }
 .wl-cover p { margin: 0 0 12px; max-width: 42ch; }
 .wl-cover .big { font-size: 16px; font-weight: 600; color: #fff; }
 .wl-cover .wl-row-of { justify-content: center; margin: 0; }
