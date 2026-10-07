@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld('roehre', {
     signOut: () => ipcRenderer.invoke('g:signOut'),
     feed: (since) => ipcRenderer.invoke('g:feed', since),       // new uploads of the subscribed channels since then
     playlists: () => ipcRenderer.invoke('g:playlists'),         // [{ id, title, count }], liked videos first
-    playlist: (id) => ipcRenderer.invoke('g:playlist', id),     // the videos in one playlist
+    playlist: (id) => ipcRenderer.invoke('g:playlist', id),     // { title, videos } of one playlist
     search: (q, music) => ipcRenderer.invoke('g:search', q, music), // up to 25 videos; with music only songs
     categories: (ids) => ipcRenderer.invoke('g:categories', ids), // { id: YouTube category }; '10' is Music
     driveLoad: () => ipcRenderer.invoke('g:driveLoad'),         // the shared lists from Drive (or null)

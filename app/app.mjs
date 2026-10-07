@@ -17,7 +17,7 @@ const $ = (id) => document.getElementById(id);
 const home = $('home'), cover = $('cover'), toast = $('toast'), bar = $('bar'), playerWin = $('w-player');
 
 let state = L.emptyState();
-let playing = null;            // { id, from: 'music' | dayId, queue: [id] }
+let playing = null;            // { id, from: 'music' | dayId, list: the playlist playing (music; '' = all), queue: [id] }
 let shuffle = false, only = false, mini = false, paused = false;
 const unavailable = new Set(); // videos YouTube will not show outside youtube.com (known since this start)
 
@@ -402,11 +402,17 @@ async function importPlaylist() {
   say(`Fetching "${p.title}"…`);
   const r = await api.google.playlist(p.id);
   if (!r.ok) { say(r.error); return; }
-  const songs = onlyMusic ? await musicOnly(r.value) : r.value;
+  await intoPlaylist(p.id, p.title, r.value.videos);
+}
+// A YouTube playlist's videos into Music and into a playlist of the same name (the one it went into before, if any).
+async function intoPlaylist(from, name, videos) {
+  if (!videos.length) { say('Nothing in that playlist can be read (a private list, or "Watch later").'); return; }
+  const songs = onlyMusic ? await musicOnly(videos) : videos;
   if (!songs) return;
-  const n = L.importToMusic(state, songs);
-  const left = r.value.length - songs.length;
-  say(onlyMusic ? `"${p.title}": ${n} ${n === 1 ? 'song' : 'songs'} in Music (${left} ${left === 1 ? 'video' : 'videos'} that ${left === 1 ? 'is' : 'are'} not music left out).` : `"${p.title}": ${n} in Music.`);
+  const list = songs.length ? L.playlistFrom(state, from, name || 'Playlist') : null;
+  const n = list ? L.importToMusic(state, songs, new Date(), list.id) : 0, left = videos.length - songs.length;
+  if (list) musicView = list.id;
+  say(`"${list?.name || name}": ${n} ${n === 1 ? 'song' : 'songs'}${onlyMusic && left ? ` (${left} not music left out)` : ''}.`);
   changed();
 }
 // A pasted link into Music: a playlist brings its songs (with Google), a song link the song. A Mix cannot be read
@@ -418,17 +424,12 @@ async function addToMusic(text) {
     say('Fetching the playlist…');
     const r = await api.google.playlist(list.id);
     if (!r.ok) { say(r.error); return; }
-    if (!r.value.length) { say('Nothing in that playlist can be read (a private list, or "Watch later").'); return; }
-    const songs = onlyMusic ? await musicOnly(r.value) : r.value;
-    if (!songs) return;
-    const n = L.importToMusic(state, songs), left = r.value.length - songs.length;
-    say(`The playlist: ${n} ${n === 1 ? 'song' : 'songs'} in Music${onlyMusic && left ? ` (${left} not music left out)` : ''}.`);
-    changed();
+    await intoPlaylist(list.id, r.value.title, r.value.videos);
     return;
   }
   if (!ids.length) { say(list?.mix ? 'A Mix is chosen by YouTube and cannot be read. Paste a song or a playlist instead.' : 'No YouTube link found in that.'); return; }
   const before = new Set(Object.keys(state.videos));
-  const n = L.importToMusic(state, ids.map((id) => ({ id })));
+  const n = L.importToMusic(state, ids.map((id) => ({ id })), new Date(), musicView);
   const planned = ids.length - n;
   say(list?.mix ? `A Mix is chosen by YouTube and cannot be read: its first song is in Music.`
     : `${n} in Music${planned ? `, ${planned} already planned for a day` : ''}.`);
@@ -446,7 +447,42 @@ async function sortOutNonMusic() {
   say(out.length ? `${out.length} ${out.length === 1 ? 'video that is' : 'videos that are'} not music went to Pick.` : 'Everything in Music is music.');
   if (out.length) changed();
 }
+// Which songs Music shows and plays: all of them ('') or one playlist's (remembered on this device).
+const VIEW = 'roehre:musicView';
+let musicView = (() => { try { return localStorage.getItem(VIEW) || ''; } catch { return ''; } })();
+let naming = null;   // a playlist being made ('new') or renamed (its id)
+const nameInput = h('input', { type: 'text', placeholder: 'Name, e.g. Work', 'aria-label': 'Playlist name', maxlength: '80' });
+nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(); else if (e.key === 'Escape') { e.stopPropagation(); naming = null; renderMusic(); } });
+function saveName() {
+  const r = naming === 'new' ? L.newPlaylist(state, nameInput.value) : L.renamePlaylist(state, naming, nameInput.value);
+  if (r.error) { say(r.error); return; }
+  if (r.playlist) { musicView = r.playlist.id; say(`"${r.playlist.name}" is ready: under every song, "Playlist…".`); }
+  naming = null; changed();
+}
+function showView(id) {
+  musicView = id; naming = null;
+  try { localStorage.setItem(VIEW, id); } catch { /* not remembered */ }
+  renderMusic();
+}
+// Under a song: into a playlist, or out of one (it stays in Music).
+function playlistChoice(id) {
+  if (!state.playlists.length) return null;
+  const sel = h('select', { 'aria-label': 'Playlist', onchange: () => {
+    const [how, listId] = sel.value.split(':');
+    const p = state.playlists.find((x) => x.id === listId);
+    if (how === 'in') { const r = L.addToPlaylist(state, listId, id); if (r.error) { say(r.error); return; } say(`Into "${p.name}".`); }
+    else { L.removeFromPlaylist(state, listId, id); say(`Out of "${p.name}" (still in Music).`); }
+    changed();
+  } },
+  h('option', { value: '' }, 'Playlist…'),
+  state.playlists.map((p) => p.items.includes(id) ? h('option', { value: 'out:' + p.id }, `Out of ${p.name}`) : h('option', { value: 'in:' + p.id }, `Into ${p.name}`)));
+  return sel;
+}
 function renderMusic() {
+  const view = state.playlists.find((p) => p.id === musicView) || null;
+  if (!view) musicView = '';
+  const songs = L.songsOf(state, musicView);
+  const seg = (id, label, n) => h('button', { type: 'button', 'aria-pressed': String(musicView === id), onclick: () => showView(id) }, `${label} ${n}`);
   fill($('music'),
     h('p', { class: 'wl-sub' }, 'Plays any time, one after another, in a loop. "Mini" keeps a small player in the corner of the screen.'),
     found('music'),
@@ -455,12 +491,26 @@ function renderMusic() {
       playlists ? [listPick, btn('Import into Music', importPlaylist)] : btn('Import from YouTube…', loadPlaylists),
       state.music.length ? btn('Move non-music to Pick', sortOutNonMusic, 'wl-quiet') : null)
       : api.home ? null : h('p', { class: 'wl-note' }, 'Sign in with Google (Settings) to search for songs and bring in playlists. Song links work without.'),
-    state.music.length ? h('div', { class: 'wl-row-of' },
-      btn('Play all', () => play(L.musicOrder(state.music, shuffle)[0], 'music'), 'wl-go'),
+    h('div', { class: 'wl-row-of' },
+      h('div', { class: 'ub-seg', role: 'group', 'aria-label': 'Playlists' },
+        seg('', 'All', state.music.length), state.playlists.map((p) => seg(p.id, p.name, p.items.length))),
+      naming ? null : btn('New playlist', () => { naming = 'new'; nameInput.value = ''; renderMusic(); nameInput.focus(); }, 'wl-quiet')),
+    naming ? h('div', { class: 'wl-paste' }, nameInput, btn(naming === 'new' ? 'Create' : 'Rename', saveName, 'wl-go'), btn('Cancel', () => { naming = null; renderMusic(); }, 'wl-quiet')) : null,
+    view && !naming ? h('div', { class: 'wl-row-of' },
+      btn('Rename', () => { naming = view.id; nameInput.value = view.name; renderMusic(); nameInput.focus(); }, 'wl-quiet'),
+      btn('Delete playlist', () => { L.deletePlaylist(state, view.id); say(`"${view.name}" is gone; its songs are still in Music (All).`); changed(); }, 'wl-quiet'),
+      view.items.length ? btn('Delete with its songs', () => {
+        const n = L.deletePlaylist(state, view.id, true);
+        say(!n ? `"${view.name}" is gone; its songs are in other playlists too, so they stay.`
+          : `"${view.name}" is gone, and ${n} ${n === 1 ? 'song' : 'songs'} with it${n < view.items.length ? ' (the ones also in another playlist stay)' : ''}.`);
+        changed();
+      }, 'wl-quiet') : null) : null,
+    songs.length ? h('div', { class: 'wl-row-of' },
+      btn(view ? `Play "${view.name}"` : 'Play all', () => play(L.musicOrder(songs, shuffle)[0], 'music'), 'wl-go'),
       btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; render(); }, '', { 'aria-pressed': String(shuffle) })) : null,
-    state.music.length
-      ? h('ul', { class: 'wl-cards' }, state.music.map((id) => card(id, [btn('Play', () => play(id, 'music')), planButtons(id, 'music')], playing?.id === id ? ' playing' : '')))
-      : h('p', { class: 'wl-empty' }, 'No music yet. In Pick, one click on "Music" under a video.'));
+    songs.length
+      ? h('ul', { class: 'wl-cards' }, songs.map((id) => card(id, [btn('Play', () => play(id, 'music')), playlistChoice(id), planButtons(id, 'music')], playing?.id === id ? ' playing' : '')))
+      : h('p', { class: 'wl-empty' }, view ? 'Nothing in this playlist yet. Under a song in All: "Playlist…".' : 'No music yet. In Pick, one click on "Music" under a video, or search above.'));
 }
 
 // ---- Settings ----
@@ -586,7 +636,7 @@ function showPlayer() {
 }
 
 function queueFor(from, startId) {
-  if (from === 'music') return L.musicOrder(state.music, shuffle, startId);
+  if (from === 'music') return L.musicOrder(L.songsOf(state, musicView), shuffle, startId);
   const day = dayById(from);
   return day ? day.items.slice(day.items.indexOf(startId)) : [];
 }
@@ -615,7 +665,7 @@ async function play(id, from) {
   if (!L.canPlay(state, id)) { say('This video is locked right now.'); return; }
   const src = L.isFile(id) ? await fileSrc(id) : null;
   if (L.isFile(id) && !src) { say('This video is on your PC: watch it there, or on the iPhone at home (Settings on the PC).'); return; }
-  playing = { id, from, queue: queueFor(from, id) };
+  playing = { id, from, list: from === 'music' ? musicView : null, queue: queueFor(from, id) };
   paused = false; hideCover();
   document.body.classList.toggle('wl-music', from === 'music');
   showPlayer();
@@ -767,7 +817,7 @@ function renderMusicPanel() {
     h('div', { class: 'mp-time' }, seek, clock),
     h('div', { class: 'mp-btns' },
       btn('Prev', () => skip(-1)), btn(paused ? 'Play' : 'Pause', toggle, 'wl-go'), btn('Next', () => skip(1)),
-      btn(shuffle ? 'Shuffle on' : 'Shuffle', () => { shuffle = !shuffle; playing.queue = L.musicOrder(state.music, shuffle, playing.id); render(); }, '', { 'aria-pressed': String(shuffle) }),
+      btn(shuffle ? 'Shuffle on' : 'Shuffle', () => { shuffle = !shuffle; playing.queue = L.musicOrder(L.songsOf(state, playing.list), shuffle, playing.id); render(); }, '', { 'aria-pressed': String(shuffle) }),
       api.desktop && mini ? btn('Bigger', () => setMini(false), 'wl-quiet') : null),
     next && next !== playing.id ? h('div', { class: 'mp-next', title: title(next) }, 'Next: ' + title(next)) : null);
 }

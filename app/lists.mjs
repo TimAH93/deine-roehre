@@ -13,6 +13,8 @@
 //   days:   [{ id, name, date, from, to, items: [id], watched: [id] }]
 //           a day list plays only on its date between from and to ("HH:MM"; empty = the whole day)
 //   music:  [id]                                      plays any time, in order or shuffled, in a loop
+//   playlists: [{ id, name, from, items: [id] }]      named lists inside Music ("Liked videos", "Work"); a song in
+//                                                     one is always in music too; from: the YouTube playlist it came from
 //   settings: { perDay, onTop, times }               perDay: how many videos a day list may hold;
 //                                                     times: { today: {from, to}, saturday: {from, to} }, the windows
 //                                                     the two days get that lay themselves out (planFor)
@@ -68,7 +70,7 @@ export const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 export const thumbUrl = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 
 export function emptyState() {
-  return { updated: '', videos: {}, inbox: [], feed: [], seen: [], lastCheck: '', days: [], music: [], settings: { perDay: DEFAULT_PER_DAY, onTop: false, times: { today: { from: '', to: '' }, saturday: { from: '', to: '' } } } };
+  return { updated: '', videos: {}, inbox: [], feed: [], seen: [], lastCheck: '', days: [], music: [], playlists: [], settings: { perDay: DEFAULT_PER_DAY, onTop: false, times: { today: { from: '', to: '' }, saturday: { from: '', to: '' } } } };
 }
 
 // A saved file from any version, made whole (missing parts filled in, unknown ids dropped).
@@ -82,6 +84,10 @@ export function cleanState(raw) {
   s.inbox = ids(r.inbox);
   s.music = ids(r.music);
   s.feed = ids(r.feed);
+  const taken = new Set();
+  s.playlists = (Array.isArray(r.playlists) ? r.playlists : []).filter((p) => p && /^p[\w-]{1,40}$/.test(p.id || '') && String(p.name || '').trim())
+    .map((p) => ({ id: p.id, name: String(p.name).trim().slice(0, 80), from: /^[\w-]{2,64}$/.test(p.from || '') ? p.from : '', items: ids(p.items).filter((id) => s.music.includes(id)) }))
+    .filter((p) => !taken.has(p.id) && taken.add(p.id));
   s.seen = [...new Set((Array.isArray(r.seen) ? r.seen : []).filter(known))].slice(-SEEN_MAX);
   s.lastCheck = isNaN(Date.parse(r.lastCheck)) ? '' : String(r.lastCheck);
   s.updated = isNaN(Date.parse(r.updated)) ? '' : String(r.updated);
@@ -239,19 +245,77 @@ export function dropMissingFiles(state, present) {
 }
 
 // A YouTube playlist into Music: [{ id, title, channel }]. New videos are added; ones waiting in the inbox or the feed
-// move over; ones planned for a day stay there. Returns how many are in Music now from this playlist.
-export function importToMusic(state, items, now = new Date()) {
+// move over; ones planned for a day stay there. With `into` (a playlist's id) they also go into that playlist.
+// Returns how many are in Music now from this playlist.
+export function importToMusic(state, items, now = new Date(), into = null) {
   let n = 0;
+  const list = state.playlists.find((p) => p.id === into);
   for (const v of items) {
     if (!ID.test(v?.id || '')) continue;
     const place = placeOf(state, v.id);
-    if (place === 'music') { n++; continue; }
-    if (place && place !== 'inbox' && place !== 'feed') continue;
-    if (!state.videos[v.id]) state.videos[v.id] = { id: v.id, title: String(v.title || ''), channel: String(v.channel || ''), added: now.toISOString(), published: '' };
-    takeOut(state, v.id);
-    state.music.push(v.id); n++;
+    if (place && place !== 'music' && place !== 'inbox' && place !== 'feed') continue;
+    if (place !== 'music') {
+      if (!state.videos[v.id]) state.videos[v.id] = { id: v.id, title: String(v.title || ''), channel: String(v.channel || ''), added: now.toISOString(), published: '' };
+      takeOut(state, v.id);
+      state.music.push(v.id);
+    }
+    if (list && !list.items.includes(v.id)) list.items.push(v.id);
+    n++;
   }
   return n;
+}
+
+// ---- playlists inside Music ----
+export function newPlaylist(state, name, from = '', now = new Date()) {
+  name = String(name || '').trim().slice(0, 80);
+  if (!name) return { error: 'Give the playlist a name.' };
+  if (state.playlists.some((p) => p.name.toLowerCase() === name.toLowerCase())) return { error: `There is a playlist "${name}" already.` };
+  const playlist = { id: 'p' + now.getTime().toString(36) + state.playlists.length, name, from: /^[\w-]{2,64}$/.test(from) ? from : '', items: [] };
+  state.playlists.push(playlist);
+  return { playlist };
+}
+// The playlist a YouTube playlist goes into: the one it went into before, or a new one with its name ("Liked videos").
+export function playlistFrom(state, from, name, now = new Date()) {
+  const had = state.playlists.find((p) => p.from === from);
+  if (had) return had;
+  let r = newPlaylist(state, name || 'Playlist', from, now);
+  for (let i = 2; r.error && i < 100; i++) r = newPlaylist(state, `${name || 'Playlist'} ${i}`, from, now);
+  return r.playlist;
+}
+// A song of Music into a playlist, or out of it (it stays in Music).
+export function addToPlaylist(state, listId, id) {
+  const p = state.playlists.find((x) => x.id === listId);
+  if (!p) return { error: 'That playlist is gone.' };
+  if (!state.music.includes(id)) return { error: 'Only songs in Music go into a playlist.' };
+  if (!p.items.includes(id)) p.items.push(id);
+  return {};
+}
+export function removeFromPlaylist(state, listId, id) {
+  const p = state.playlists.find((x) => x.id === listId);
+  if (p) p.items = p.items.filter((x) => x !== id);
+}
+export function renamePlaylist(state, listId, name) {
+  const p = state.playlists.find((x) => x.id === listId);
+  name = String(name || '').trim().slice(0, 80);
+  if (!p || !name) return { error: 'Give the playlist a name.' };
+  if (state.playlists.some((x) => x !== p && x.name.toLowerCase() === name.toLowerCase())) return { error: `There is a playlist "${name}" already.` };
+  p.name = name;
+  return {};
+}
+// A playlist goes away. Its songs stay in Music, or, withSongs, the ones in no other playlist leave Music for good.
+// Returns how many songs left.
+export function deletePlaylist(state, listId, withSongs = false) {
+  const p = state.playlists.find((x) => x.id === listId);
+  if (!p) return 0;
+  state.playlists = state.playlists.filter((x) => x !== p);
+  if (!withSongs) return 0;
+  const gone = p.items.filter((id) => !state.playlists.some((x) => x.items.includes(id)));
+  for (const id of gone) removeVideo(state, id);
+  return gone.length;
+}
+// The songs that play: one playlist's, or all of Music.
+export function songsOf(state, listId) {
+  return listId ? state.playlists.find((p) => p.id === listId)?.items || [] : state.music;
 }
 
 // Where a video is now: 'inbox', 'feed', 'music', a day's id, or null.
@@ -266,6 +330,7 @@ function takeOut(state, id) {
   state.inbox = state.inbox.filter((x) => x !== id);
   state.feed = state.feed.filter((x) => x !== id);
   state.music = state.music.filter((x) => x !== id);
+  for (const p of state.playlists) p.items = p.items.filter((x) => x !== id);
   for (const d of state.days) { d.items = d.items.filter((x) => x !== id); d.watched = d.watched.filter((x) => x !== id); }
 }
 

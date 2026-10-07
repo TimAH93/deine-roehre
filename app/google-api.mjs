@@ -91,11 +91,14 @@ export function makeApi(token) {
       ...lists.map((p) => ({ id: p.id, title: String(p.snippet?.title || ''), count: p.contentDetails?.itemCount ?? null })),
     ];
   }
-  // The videos in one playlist (up to 500), in its order.
+  // One playlist: its title and its videos (up to 500), in its order: { title, videos }.
   async function playlistVideos(id) {
-    if (!/^[\w-]{2,64}$/.test(id)) return [];
-    const items = await all('playlistItems', { playlistId: id, part: 'snippet,contentDetails' }, 500);
-    return items.map((it) => video(it.snippet, it.contentDetails?.videoId)).filter(usable);
+    if (!/^[\w-]{2,64}$/.test(id)) return { title: '', videos: [] };
+    const [about, items] = await Promise.all([
+      get('playlists', { id, part: 'snippet' }).catch((e) => { if (e.stop || e.signedOut) throw e; return {}; }),
+      all('playlistItems', { playlistId: id, part: 'snippet,contentDetails' }, 500),
+    ]);
+    return { title: String(about.items?.[0]?.snippet?.title || ''), videos: items.map((it) => video(it.snippet, it.contentDetails?.videoId)).filter(usable) };
   }
   // A search on YouTube: up to 25 videos that play in other players, in YouTube's order of relevance; with `music` only
   // what YouTube files as music. Each search costs 100 of the 10,000 a day (about 100 searches a day).

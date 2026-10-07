@@ -60,6 +60,11 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
 - Tim mixes English and German in chat; the README is German; PowerShell steps always start with their own
   `cd C:\Users\Tim\Documents\deine-roehre` box, one command per box.
 
+- **Playlists in Music** (built 2026-10-07, second chat, same testing as above): `state.playlists`, each song also in
+  `music`; an imported or pasted YouTube playlist becomes its own playlist (`from` = its YouTube id, a second import
+  fills the same one); Music shows All or one playlist and plays what it shows. Tim asked for it so the liked videos
+  are one playlist he can leave out of sight. Tim's earlier flat import: importing "Liked videos" once more fills the
+  new playlist with the songs already in Music.
 - **Mixes** (YouTube's "Mix – …", list ids starting RD): Tim asked how to play one. Claude advised against (a Mix is
   YouTube's recommendations, and the Data API cannot read it) and offered search plus playlist links instead; Tim took
   those. A pasted Mix link brings only its first song and says why. Tim may still ask for Mixes; it is his call.
@@ -81,7 +86,7 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
 3. **YouTube Premium in the app:** today the player uses youtube-nocookie and the PC app has no YouTube login, so
    Premium does **not** remove ads there. Offered: a "sign in to YouTube" window in the app and the normal
    youtube.com player. Tim has not answered whether he has Premium.
-4. **Playlists in Music** (e.g. "Work", "Sport"); imported YouTube playlists arrive as their own playlist.
+4. ~~Playlists in Music~~ (built 2026-10-07).
 5. **Channels list:** the subscribed channels on the left, each can be switched off (one that uploads too much).
 6. **Google Drive videos** for the iPhone away from home (option 2 above).
 7. **The emblem:** Tim copies `archon-grid.png` from eisenfaust's `docs\brand` into `brand\` (not in Git); later

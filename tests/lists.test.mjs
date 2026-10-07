@@ -220,3 +220,50 @@ test('playlist links: the list in a playlist or song link; a Mix is marked; othe
   assert.deepEqual(L.playlistIn(`youtube.com/watch?v=${A}&list=RD${A}&start_radio=1`), { id: 'RD' + A, mix: true });
   for (const no of ['', 'lofi beats', `https://youtu.be/${A}`, 'https://example.com/playlist?list=PL1', 'https://www.youtube.com/playlist?list=<x>']) assert.equal(L.playlistIn(no), null, no);
 });
+
+test('playlists in Music: an import fills its own playlist, songs move in and out, deleting keeps or takes the songs', () => {
+  const s = L.emptyState(), now = at('2026-10-07T10:00');
+  const liked = L.playlistFrom(s, 'LLabc', 'Liked videos', now);
+  assert.equal(L.importToMusic(s, [{ id: A, title: 'a' }, { id: B, title: 'b' }, { id: C, title: 'c' }], now, liked.id), 3);
+  assert.equal(L.playlistFrom(s, 'LLabc', 'Liked videos', now), liked);           // a second import fills the same one
+  assert.equal(L.importToMusic(s, [{ id: A }, { id: D }], now, liked.id), 2);
+  assert.deepEqual(liked.items, [A, B, C, D]);
+  assert.deepEqual(s.music, [A, B, C, D]);
+
+  const { playlist: work } = L.newPlaylist(s, 'Work', '', now);
+  assert.equal(L.newPlaylist(s, ' work ', '', now).error, 'There is a playlist "work" already.');
+  assert.ok(L.newPlaylist(s, '  ', '', now).error);
+  L.addToPlaylist(s, work.id, A); L.addToPlaylist(s, work.id, B); L.addToPlaylist(s, work.id, A);
+  assert.deepEqual(L.songsOf(s, work.id), [A, B]);
+  assert.deepEqual(L.songsOf(s, ''), s.music);
+  L.addToInbox(s, [E], {}, now);
+  assert.ok(L.addToPlaylist(s, work.id, E).error);                                 // only songs in Music
+
+  L.removeFromPlaylist(s, work.id, B);
+  assert.deepEqual(work.items, [A]);
+  assert.ok(s.music.includes(B));                                                  // out of a playlist, still in Music
+  L.moveTo(s, A, 'inbox');                                                         // a song leaving Music leaves its playlists
+  assert.deepEqual(work.items, []);
+  assert.deepEqual(liked.items, [B, C, D]);
+
+  L.addToPlaylist(s, work.id, C);
+  assert.equal(L.deletePlaylist(s, liked.id, true), 2);                            // C is also in Work: it stays
+  assert.deepEqual(s.music, [C]);
+  assert.equal(s.videos[B], undefined);
+  assert.equal(L.deletePlaylist(s, work.id), 0);
+  assert.deepEqual(s.music, [C]);
+  assert.deepEqual(s.playlists, []);
+});
+
+test('playlists survive saving: unknown songs and broken entries are dropped', () => {
+  const s = L.emptyState();
+  L.importToMusic(s, [{ id: A }, { id: B }]);
+  const { playlist } = L.newPlaylist(s, 'Sport');
+  L.addToPlaylist(s, playlist.id, A);
+  const raw = JSON.parse(JSON.stringify(s));
+  raw.playlists[0].items.push(C, 'nonsense');
+  raw.playlists.push({ id: 'bad id', name: 'x', items: [] }, { id: 'p2', name: '', items: [] }, null);
+  const back = L.cleanState(raw);
+  assert.deepEqual(back.playlists, [{ id: playlist.id, name: 'Sport', from: '', items: [A] }]);
+  assert.deepEqual(L.cleanState({}).playlists, []);
+});

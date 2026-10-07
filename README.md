@@ -70,7 +70,15 @@ Vier Fenster im Menü:
   geht nicht: den stellt YouTube selbst zusammen, und Apps können ihn nicht
   lesen; dann kommt nur sein erstes Lied.
   Mit Google angemeldet holt „Import from YouTube…“ eine deiner Playlists oder
-  deine „Liked videos“ hierher. „Only music“ (an) nimmt nur, was YouTube als
+  deine „Liked videos“ hierher.
+  **Playlists in Music:** Jede geholte YouTube-Playlist (auch „Liked videos“
+  und eingefügte Links) wird eine eigene Playlist mit ihrem Namen; holst du
+  sie noch einmal, kommen neue Lieder in dieselbe. „New playlist“ macht eine
+  eigene (z. B. „Work“, „Sport“); unter jedem Lied steht „Playlist…“: hinein
+  oder heraus. Oben wählst du, was du siehst und was spielt: **All** oder eine
+  Playlist („Play "Work"“). „Delete playlist“ löscht nur die Liste (die Lieder
+  bleiben in All), „Delete with its songs“ nimmt auch ihre Lieder aus Music,
+  außer denen, die noch in einer anderen Playlist sind. „Only music“ (an) nimmt nur, was YouTube als
   Musik einordnet (beim Import, bei Playlist-Links und bei der Suche); „Move non-music to Pick“ räumt Music nachträglich auf
   (nichts wird gelöscht).
 - **Settings:** wann Today und Samstag spielen (leer = ganzer Tag), wie viele

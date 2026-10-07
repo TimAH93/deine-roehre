@@ -206,3 +206,6 @@ body.wl-mini.wl-music .wl-cover p { font-size: 12px; }
   .wl-r img { width: 80px; }
   .wl-r .acts { grid-column: 1 / -1; justify-content: flex-start; }
 }
+/* Music's playlists: as many as Tim makes, so the row wraps (on the iPhone too) */
+#music .ub-seg { flex-wrap: wrap; max-width: 100%; }
+.wl-card .acts select { max-width: 100%; min-width: 0; }
