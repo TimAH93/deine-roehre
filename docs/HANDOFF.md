@@ -79,7 +79,12 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
   home server, a PC page with a stand-in for Electron, and a phone page (Chromium, iPhone size); not on real hardware.
   Not built: the volume (YouTube's player has one, but Tim did not ask), the remote for videos on Today (the buttons
   work for them too, but the remote shows only in Music).
- "Mix – …", list ids starting RD): Tim asked how to play one. Claude advised against (a Mix is
+- **QR code for the iPhone at home** (built 2026-10-07, second chat, Tim's idea): Settings shows a QR code of
+  `http://<PC>:47832/#pair=<code>`; lan-api.mjs pairs with the code from the address and takes it out of the address.
+  First runtime dependency: `qrcode-generator` (MIT, no dependencies of its own), used in main.mjs/home.mjs only
+  (start.ps1 installs it on its own, the lock file changed). Checked: the picture decodes back to the address with an
+  independent reader (jsQR), and a phone page opened with #pair paired without asking.
+- **Mixes** (YouTube's "Mix – …", list ids starting RD): Tim asked how to play one. Claude advised against (a Mix is
   YouTube's recommendations, and the Data API cannot read it) and offered search plus playlist links instead; Tim took
   those. A pasted Mix link brings only its first song and says why. Tim may still ask for Mixes; it is his call.
 
