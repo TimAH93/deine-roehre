@@ -13,6 +13,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
+import qrcode from 'qrcode-generator';
 
 export const HOME_PORT = 47832;
 export const VIDEO_TYPES = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.mkv': 'video/x-matroska' };
@@ -87,6 +88,17 @@ export function remoteCommand(raw) {
   if (id && !/^[A-Za-z0-9_-]{11}$/.test(id)) return null;
   if ((action === 'add' || action === 'out') && !list) return null;
   return { action, ...(list ? { list } : {}), ...(id ? { id } : {}) };
+}
+
+// The address a phone opens to pair, with the code in it (#pair=…, read by lan-api.mjs, never sent to the server
+// in the address): one scan with the iPhone's camera, no typing.
+export const pairUrl = (address, code) => `${address}/#pair=${code}`;
+// That address as a QR code: an SVG picture, black on white (a camera reads it best so), as a data: address for <img>.
+export function qrPicture(text) {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  return 'data:image/svg+xml;base64,' + Buffer.from(qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true })).toString('base64');
 }
 
 const json = (res, status, value) => res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(value));

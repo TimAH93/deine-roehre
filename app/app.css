@@ -220,3 +220,7 @@ body.wl-mini.wl-music .wl-cover p { font-size: 12px; }
 .wl-rline .mp-next { flex: 1; min-width: 0; }
 .wl-remote { position: sticky; top: 0; z-index: 2; background: #070505; padding: 4px 0 8px; }
 .wl-remote > .wl-row-of { margin-bottom: 6px; }
+/* The QR code for the iPhone at home (Settings): white around it, so the camera finds it on the dark glass */
+.wl-qr { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.wl-qr img { width: 180px; height: 180px; image-rendering: pixelated; border-radius: 2px; background: #fff; }
+.wl-qr .wl-note { flex: 1; min-width: 200px; margin: 0; }

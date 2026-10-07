@@ -658,9 +658,13 @@ function renderSettings() {
           if (homeState.home) say('Windows may ask whether Deine Röhre may use the network: allow it for private networks.');
         }, '', { 'aria-pressed': String(!!homeState?.home) })),
       homeState?.home ? [
+        homeState.addresses.length && homeState.qr ? h('div', { class: 'wl-qr' },
+          h('img', { src: homeState.qr, alt: `QR code for ${homeState.addresses[0]} with the code`, width: '180', height: '180' }),
+          h('p', { class: 'wl-note' }, 'Point your iPhone\'s camera at this and tap the link: Deine Röhre opens, already paired. Then Share, "Add to Home Screen". ',
+            'It is also the remote for music on this PC (Music, at the top).')) : null,
         h('p', { class: 'wl-note' }, homeState.addresses.length
-          ? ['On your iPhone, in Safari: ', h('strong', {}, homeState.addresses[0]), ' then the code ', h('strong', { class: 'wl-code' }, homeState.code),
-             '. Then Share, "Add to Home Screen". It is also the remote for music on this PC (Music, at the top). ', homeState.phones ? `${homeState.phones} paired.` : '']
+          ? [homeState.qr ? 'Or by hand, in Safari: ' : 'On your iPhone, in Safari: ', h('strong', {}, homeState.addresses[0]), ' then the code ', h('strong', { class: 'wl-code' }, homeState.code),
+             '. ', homeState.phones ? `${homeState.phones} paired.` : '']
           : 'This PC is not in a home network right now.'),
         h('div', { class: 'wl-row-of' }, btn('New code (every phone pairs again)', async () => { const r = await api.files.newCode(); if (r.ok) { homeState = r.value; renderSettings(); } }, 'wl-quiet')),
       ] : null,

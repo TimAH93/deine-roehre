@@ -116,11 +116,13 @@ auf dem iPhone.
 ## iPhone zu Hause (über den PC, im WLAN)
 
 1. Am PC: **Settings, iPhone at home** auf **On**. Windows fragt einmal, ob
-   Deine Röhre ins Netzwerk darf: für **private Netzwerke** erlauben.
-2. Settings zeigt eine Adresse wie `http://192.168.1.23:47832` und einen
-   6-stelligen Code.
-3. Auf dem iPhone (im selben WLAN) die Adresse in Safari öffnen, den Code
-   einmal eingeben. Dann **Teilen, Zum Home-Bildschirm**.
+   „Electron“ (das ist Deine Röhre) ins Netzwerk darf: für **private
+   Netzwerke** erlauben.
+2. Settings zeigt einen **QR-Code**. Auf dem iPhone (im selben WLAN) die
+   Kamera darauf halten und auf den Link tippen: Deine Röhre öffnet sich in
+   Safari, schon verbunden. Dann **Teilen, Zum Home-Bildschirm**.
+3. Ohne Kamera: die Adresse darunter (wie `http://192.168.1.23:47832`) in
+   Safari öffnen und den 6-stelligen Code einmal eingeben.
 
 Das iPhone zeigt dann die Listen des PCs, mit deinen eigenen Videos, und jede
 Änderung geht in ein paar Sekunden hin und her.

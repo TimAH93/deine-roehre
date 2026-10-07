@@ -25,6 +25,20 @@ async function pair() {
     note = (j.error || 'That did not work.') + ' Try again:';
   }
 }
+// Opened from the PC's QR code (…/#pair=123456): paired with that code at once, and the code taken out of the address
+// (so "Add to Home Screen" keeps the plain address). A wrong or old code falls back to asking.
+async function pairFromAddress() {
+  const code = /^#pair=(\d{6})$/.exec(location.hash)?.[1];
+  if (!code) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  if (store.get(KEY)) return;
+  try {
+    const r = await fetch('/api/pair', { method: 'POST', body: JSON.stringify({ code }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.key) store.set(KEY, j.key);
+  } catch { /* the PC is away: asked for the code below */ }
+}
+await pairFromAddress();
 async function call(url, init = {}) {
   const key = store.get(KEY) || await pair();
   const r = await fetch(url, { ...init, headers: { 'x-roehre-key': key, ...(init.headers || {}) } });

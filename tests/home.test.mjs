@@ -92,3 +92,13 @@ test('home server as a remote: what plays and the buttons need a key; only known
   window = false;
   assert.deepEqual(await (await press({ action: 'toggle' })).json(), { done: false });
 });
+
+test('QR code: the address with the code in it, as an SVG picture', () => {
+  assert.equal(H.pairUrl('http://192.168.1.23:47832', '048213'), 'http://192.168.1.23:47832/#pair=048213');
+  const pic = H.qrPicture(H.pairUrl('http://192.168.1.23:47832', '048213'));
+  assert.match(pic, /^data:image\/svg\+xml;base64,/);
+  const svg = Buffer.from(pic.split(',')[1], 'base64').toString('utf8');
+  assert.match(svg, /^<svg[^>]*viewBox="0 0 \d+ \d+"/);
+  assert.match(svg, /<path d="M/);
+  assert.notEqual(H.qrPicture('http://10.0.0.2:47832/#pair=111111'), pic);
+});

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { cleanState, emptyState, watchUrl, newer } from './lists.mjs';
 import * as google from './google.mjs';
-import { scanFolder, sendVideo, startHome, homeAddresses, HOME_PORT } from './home.mjs';
+import { scanFolder, sendVideo, startHome, homeAddresses, pairUrl, qrPicture, HOME_PORT } from './home.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -93,7 +93,10 @@ async function fileFor(id) {
 }
 async function homeInfo() {
   const p = await pcSettings();
-  return { folder: p.folder, home: !!home, addresses: homeAddresses().map((a) => `http://${a}:${HOME_PORT}`), code: p.code, phones: p.keys.length };
+  const addresses = homeAddresses().map((a) => `http://${a}:${HOME_PORT}`);
+  // the QR code only while the home server runs: the first address with the code in it
+  const qr = home && addresses.length && p.code ? qrPicture(pairUrl(addresses[0], p.code)) : '';
+  return { folder: p.folder, home: !!home, addresses, code: p.code, phones: p.keys.length, qr };
 }
 async function setHome(on) {
   const p = await pcSettings();
