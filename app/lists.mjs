@@ -51,6 +51,19 @@ export function videoIds(text) {
   return found;
 }
 
+// The playlist in a pasted text: the first YouTube link with a list (playlist?list=…, or a song played inside a list),
+// or null. A Mix (an id starting with RD) is YouTube picking songs itself; apps cannot read it (mix: true).
+export function playlistIn(text) {
+  for (const word of String(text || '').split(/[\s<>"'(),]+/)) {
+    let url;
+    try { url = new URL(/^[a-z]+:\/\//i.test(word) ? word : 'https://' + word); } catch { continue; }
+    const host = url.hostname.toLowerCase().replace(/^(www|m|music)\./, '');
+    const id = url.searchParams.get('list') || '';
+    if ((host === 'youtube.com' || host === 'youtube-nocookie.com') && /^[\w-]{2,64}$/.test(id)) return { id, mix: /^RD/.test(id) };
+  }
+  return null;
+}
+
 export const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 export const thumbUrl = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 

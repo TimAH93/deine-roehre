@@ -3,7 +3,7 @@
 // side hands in `token()`, an async function that gives a current access token or throws (with signedOut set when the
 // sign-in is gone). Only plain fetch, so it runs in Node and in a browser.
 //
-// What it reads: YouTube (youtube.readonly: subscriptions, uploads, playlists, video titles); what it reads and writes:
+// What it reads: YouTube (youtube.readonly: subscriptions, uploads, playlists, video titles, search); what it reads and writes:
 // one file, lists.json, in Google Drive's app data folder (drive.appdata), a hidden folder only this app can see.
 // That file is how the PC, the iPhone and the tablet share the same lists.
 
@@ -13,6 +13,12 @@ const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const ID = /^[A-Za-z0-9_-]{11}$/;
 const FILE = 'lists.json';
+
+// Search answers carry titles HTML-escaped ("Rock &amp; Roll", "Don&#39;t").
+const ENTITY = { amp: '&', quot: '"', lt: '<', gt: '>', apos: "'" };
+const plain = (t) => String(t || '').replace(/&(#\d+|#x[\da-f]+|amp|quot|lt|gt|apos);/gi, (m, e) =>
+  e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : ENTITY[e.toLowerCase()]);
+export { plain as unescapeTitle };
 
 const stop = (text, more = {}) => Object.assign(new Error(text), { stop: true }, more);   // ends a whole look, not just one channel
 const timeout = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined);
@@ -91,6 +97,17 @@ export function makeApi(token) {
     const items = await all('playlistItems', { playlistId: id, part: 'snippet,contentDetails' }, 500);
     return items.map((it) => video(it.snippet, it.contentDetails?.videoId)).filter(usable);
   }
+  // A search on YouTube: up to 25 videos that play in other players, in YouTube's order of relevance; with `music` only
+  // what YouTube files as music. Each search costs 100 of the 10,000 a day (about 100 searches a day).
+  async function search(q, music = false) {
+    q = String(q || '').trim().slice(0, 200);
+    if (!q) return [];
+    const j = await get('search', { q, part: 'snippet', type: 'video', videoEmbeddable: 'true', maxResults: '25', ...(music ? { videoCategoryId: '10' } : {}) });
+    return (j.items || []).map((it) => {
+      const v = video(it.snippet, it.id?.videoId);
+      return { ...v, title: plain(v.title), channel: plain(v.channel) };
+    }).filter(usable);
+  }
   // Titles and channels: { id: { ok, title, channel } }; ok false for a video that is gone or private.
   async function videoInfo(ids) {
     const out = {};
@@ -135,5 +152,5 @@ export function makeApi(token) {
     await call(`${UPLOAD}?uploadType=multipart`, { method: 'POST', headers: { 'content-type': `multipart/related; boundary=${b}` }, body: multipart });
   }
 
-  return { subscriptions, uploads, playlists, playlistVideos, videoInfo, categories, driveLoad, driveSave };
+  return { subscriptions, uploads, playlists, playlistVideos, search, videoInfo, categories, driveLoad, driveSave };
 }

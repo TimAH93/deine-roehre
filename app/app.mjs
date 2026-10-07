@@ -240,16 +240,80 @@ function renderAnother() {
 
 // ---- Pick: everything you might watch, as cards: your own links (Mine) and your channels' new videos ----
 let pickFilter = 'all';
-const paste = h('input', { type: 'text', placeholder: 'Paste YouTube links here (or press Ctrl+V anywhere)', 'aria-label': 'YouTube links' });
-const addPasted = () => { addLinks(paste.value); paste.value = ''; };
-paste.addEventListener('keydown', (e) => { if (e.key === 'Enter') addPasted(); });
+
+// ---- one field for links and searches (Pick and Music): a YouTube link is added, other words search YouTube ----
+// The results are only shown, not kept; nothing in them plays until it is planned or in Music.
+const finders = {};
+function finder(where, placeholder, onLinks) {
+  const f = finders[where] = { input: null, go: null, q: '', items: null, busy: false };
+  f.input = h('input', { type: 'text', placeholder, 'aria-label': placeholder });
+  f.go = btn('Add', () => run(), 'wl-go');
+  const looksLikeLink = () => !!(L.videoIds(f.input.value).length || L.playlistIn(f.input.value));
+  const label = () => { f.go.textContent = looksLikeLink() || !f.input.value.trim() ? 'Add' : 'Search'; };
+  async function run() {
+    const text = f.input.value.trim();
+    if (!text) return;
+    if (looksLikeLink()) { f.input.value = ''; label(); onLinks(text); return; }
+    if (!google.signedIn) { say(api.home ? 'Search: on the PC.' : 'Searching needs the Google sign-in (Settings).'); return; }
+    if (f.busy) return;
+    f.busy = true; f.q = text; renderFound(where);
+    const r = await api.google.search(text, where === 'music' && onlyMusic);
+    f.busy = false;
+    if (!r.ok) { say(r.error); if (r.signedOut) { await refreshGoogle(); render(); } else renderFound(where); return; }
+    f.items = r.value; renderFound(where);
+    if (!r.value.length) say('Nothing found.');
+  }
+  f.input.addEventListener('input', label);
+  f.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+  f.box = h('div');   // the results, drawn by renderFound
+  return f;
+}
+const found = (where) => [h('div', { class: 'wl-paste' }, finders[where].input, finders[where].go), finders[where].box];
+// A search result: its picture, title, channel; where it is already, or one click to file it.
+function foundCard(v, where) {
+  const here = L.placeOf(state, v.id);
+  const put = (target, label) => {
+    const fresh = !state.videos[v.id];
+    if (fresh) L.addToInbox(state, [v.id], { [v.id]: v });
+    if (target !== 'inbox') {
+      const r = L.planFor(state, v.id, target);
+      if (r.error) { if (fresh) L.removeVideo(state, v.id); say(r.error); return; }
+    }
+    say(`${v.title.slice(0, 40)}${v.title.length > 40 ? '…' : ''}: ${label}.`);
+    changed();
+  };
+  const at = here === 'inbox' || here === 'feed' ? 'In Pick' : here === 'music' ? 'In Music' : here ? `In ${dayLabel(dayById(here))}` : null;
+  return h('li', { class: 'wl-card' },
+    h('div', { class: 'wl-thumb wl-still' }, h('img', { src: L.thumbUrl(v.id), alt: '', loading: 'lazy', onerror: (e) => e.target.removeAttribute('src') })),
+    h('div', { class: 't', title: v.title }, v.title),
+    h('div', { class: 'c' }, [v.channel, ago(v.published)].filter(Boolean).join(' · ')),
+    h('div', { class: 'acts' },
+      where === 'music'
+        ? (here === 'music' ? h('span', { class: 'wl-tag' }, 'In Music') : btn('Add to Music', () => put('music', 'Music'), 'wl-go'))
+        : here ? h('span', { class: 'wl-tag' }, at)
+          : [btn('Today', () => put('today', 'today')), btn('Saturday', () => put('saturday', 'Saturday')), btn('Music', () => put('music', 'Music')), btn('Pick', () => put('inbox', 'in Pick'), 'wl-quiet')]));
+}
+function renderFound(where) {
+  const f = finders[where];
+  fill(f.box, f.busy ? h('p', { class: 'wl-note' }, `Searching for "${f.q}"…`)
+    : f.items ? [
+        h('div', { class: 'wl-row-of' },
+          h('span', { class: 'wl-sub', style: 'margin:0' }, `${f.items.length} found for "${f.q}"${where === 'music' && onlyMusic ? ' (only music)' : ''}`),
+          btn('Clear', () => { f.items = null; renderFound(where); }, 'wl-quiet')),
+        f.items.length ? h('ul', { class: 'wl-cards' }, f.items.map((v) => foundCard(v, where))) : null,
+        h('div', { class: 'ub-section' }, where === 'music' ? 'Your music' : 'Your picks'),
+      ] : null);
+}
+finder('pick', 'Paste YouTube links, or type to search YouTube', (text) => addLinks(text));
+finder('music', 'Paste a playlist or song link, or search for songs', (text) => addToMusic(text));
+
 function renderPick() {
   const mine = state.inbox.filter((id) => !L.isFile(id)), own = state.inbox.filter((id) => L.isFile(id));
   const list = pickFilter === 'mine' ? mine : pickFilter === 'files' ? own : pickFilter === 'channels' ? state.feed : [...state.inbox, ...state.feed];
   const seg = (key, label, n) => h('button', { type: 'button', 'aria-pressed': String(pickFilter === key), onclick: () => { pickFilter = key; renderPick(); } }, `${label} ${n}`);
   const checked = state.lastCheck ? `last look ${ago(state.lastCheck)}` : 'not looked yet';
   fill($('pick'),
-    h('div', { class: 'wl-paste' }, paste, btn('Add', addPasted, 'wl-go')),
+    found('pick'),
     h('div', { class: 'wl-row-of' },
       h('div', { class: 'ub-seg', role: 'group', 'aria-label': 'Show' },
         seg('all', 'All', state.inbox.length + state.feed.length), seg('mine', 'Mine', mine.length),
@@ -258,7 +322,7 @@ function renderPick() {
       pickFilter !== 'mine' && google.signedIn ? [
         h('span', { class: 'wl-sub', style: 'margin:0' }, checking ? 'Looking at your channels…' : `Channels: ${checked}`),
         btn('Look now', () => checkChannels(true), 'wl-quiet', { disabled: checking })] : null),
-    pickFilter !== 'mine' && pickFilter !== 'files' && !google.signedIn && !api.home ? h('p', { class: 'wl-note' }, 'Sign in with Google (Settings) and the new videos of your subscribed channels appear here too, newest first. No recommendations.') : null,
+    pickFilter !== 'mine' && pickFilter !== 'files' && !google.signedIn && !api.home ? h('p', { class: 'wl-note' }, 'Sign in with Google (Settings) and the new videos of your subscribed channels appear here too, newest first, and you can search YouTube. No recommendations.') : null,
     list.length
       ? h('ul', { class: 'wl-cards' }, list.map((id) => card(id, planButtons(id))))
       : h('p', { class: 'wl-empty' }, pickFilter === 'channels' ? 'Nothing new from your channels.'
@@ -345,6 +409,32 @@ async function importPlaylist() {
   say(onlyMusic ? `"${p.title}": ${n} ${n === 1 ? 'song' : 'songs'} in Music (${left} ${left === 1 ? 'video' : 'videos'} that ${left === 1 ? 'is' : 'are'} not music left out).` : `"${p.title}": ${n} in Music.`);
   changed();
 }
+// A pasted link into Music: a playlist brings its songs (with Google), a song link the song. A Mix cannot be read
+// (YouTube picks its songs itself), so only the song it was opened on comes.
+async function addToMusic(text) {
+  const list = L.playlistIn(text), ids = L.videoIds(text);
+  if (list && !list.mix) {
+    if (!google.signedIn) { say(api.home ? 'Playlists: on the PC.' : 'A playlist needs the Google sign-in (Settings). Song links work without.'); return; }
+    say('Fetching the playlist…');
+    const r = await api.google.playlist(list.id);
+    if (!r.ok) { say(r.error); return; }
+    if (!r.value.length) { say('Nothing in that playlist can be read (a private list, or "Watch later").'); return; }
+    const songs = onlyMusic ? await musicOnly(r.value) : r.value;
+    if (!songs) return;
+    const n = L.importToMusic(state, songs), left = r.value.length - songs.length;
+    say(`The playlist: ${n} ${n === 1 ? 'song' : 'songs'} in Music${onlyMusic && left ? ` (${left} not music left out)` : ''}.`);
+    changed();
+    return;
+  }
+  if (!ids.length) { say(list?.mix ? 'A Mix is chosen by YouTube and cannot be read. Paste a song or a playlist instead.' : 'No YouTube link found in that.'); return; }
+  const before = new Set(Object.keys(state.videos));
+  const n = L.importToMusic(state, ids.map((id) => ({ id })));
+  const planned = ids.length - n;
+  say(list?.mix ? `A Mix is chosen by YouTube and cannot be read: its first song is in Music.`
+    : `${n} in Music${planned ? `, ${planned} already planned for a day` : ''}.`);
+  changed();
+  fetchInfo(ids.filter((id) => !before.has(id)));
+}
 // What is in Music but not filed as music on YouTube goes to Pick (nothing is deleted).
 async function sortOutNonMusic() {
   if (!state.music.length) return;
@@ -359,11 +449,12 @@ async function sortOutNonMusic() {
 function renderMusic() {
   fill($('music'),
     h('p', { class: 'wl-sub' }, 'Plays any time, one after another, in a loop. "Mini" keeps a small player in the corner of the screen.'),
+    found('music'),
     google.signedIn ? h('div', { class: 'wl-row-of' },
-      playlists ? [listPick,
-        btn(onlyMusic ? 'Only music: on' : 'Only music: off', () => { onlyMusic = !onlyMusic; renderMusic(); }, '', { 'aria-pressed': String(onlyMusic) }),
-        btn('Import into Music', importPlaylist)] : btn('Import from YouTube…', loadPlaylists),
-      state.music.length ? btn('Move non-music to Pick', sortOutNonMusic, 'wl-quiet') : null) : null,
+      btn(onlyMusic ? 'Only music: on' : 'Only music: off', () => { onlyMusic = !onlyMusic; renderMusic(); }, '', { 'aria-pressed': String(onlyMusic), title: 'Searches, playlists and imports bring only what YouTube files as music' }),
+      playlists ? [listPick, btn('Import into Music', importPlaylist)] : btn('Import from YouTube…', loadPlaylists),
+      state.music.length ? btn('Move non-music to Pick', sortOutNonMusic, 'wl-quiet') : null)
+      : api.home ? null : h('p', { class: 'wl-note' }, 'Sign in with Google (Settings) to search for songs and bring in playlists. Song links work without.'),
     state.music.length ? h('div', { class: 'wl-row-of' },
       btn('Play all', () => play(L.musicOrder(state.music, shuffle)[0], 'music'), 'wl-go'),
       btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; render(); }, '', { 'aria-pressed': String(shuffle) })) : null,
@@ -443,12 +534,13 @@ function renderSettings() {
 }
 
 function render() {
-  renderToday(); renderPick(); renderMusic(); renderSettings(); renderBar();
+  renderToday(); renderPick(); renderMusic(); renderSettings(); renderBar(); renderFound('pick'); renderFound('music');
 }
 
 // ---- adding videos ----
 async function addLinks(text) {
   const ids = L.videoIds(text);
+  if (!ids.length && L.playlistIn(text)) { say('That is a playlist: paste it in Music to bring in its songs.'); return; }
   if (!ids.length) { if (String(text).trim()) say('No YouTube link found in that.'); return; }
   const added = L.addToInbox(state, ids);
   if (!added.length) { say(ids.length === 1 ? 'That video is already in a list.' : 'Those videos are already in your lists.'); return; }

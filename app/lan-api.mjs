@@ -63,7 +63,7 @@ export const api = {
   google: {
     status: async () => ({ ok: true, value: { configured: false, signedIn: false } }),
     chooseClient: off('Google'), signIn: off('Google sign-in'), signOut: off('Google'),
-    feed: off('Channels'), playlists: off('Import'), playlist: off('Import'), categories: off('Sorting'),
+    feed: off('Channels'), playlists: off('Import'), playlist: off('Import'), search: off('Search'), categories: off('Sorting'),
     driveLoad: off('Sharing'), driveSave: off('Sharing'),
   },
 };

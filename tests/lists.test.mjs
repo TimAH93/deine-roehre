@@ -213,3 +213,10 @@ test('own files: new ones go to Pick, a removed one stays away, missing ones lea
   assert.equal(s.videos[f1], undefined);
   assert.deepEqual(s.days[0].items, []);
 });
+
+test('playlist links: the list in a playlist or song link; a Mix is marked; other text gives none', () => {
+  assert.deepEqual(L.playlistIn('https://www.youtube.com/playlist?list=PLabc_DEF-123'), { id: 'PLabc_DEF-123', mix: false });
+  assert.deepEqual(L.playlistIn(`look: https://music.youtube.com/watch?v=${A}&list=OLAK5uy_xyz`), { id: 'OLAK5uy_xyz', mix: false });
+  assert.deepEqual(L.playlistIn(`youtube.com/watch?v=${A}&list=RD${A}&start_radio=1`), { id: 'RD' + A, mix: true });
+  for (const no of ['', 'lofi beats', `https://youtu.be/${A}`, 'https://example.com/playlist?list=PL1', 'https://www.youtube.com/playlist?list=<x>']) assert.equal(L.playlistIn(no), null, no);
+});

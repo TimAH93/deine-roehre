@@ -13,6 +13,10 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
 - **Built but not yet confirmed on real hardware:** the one-click Today/Pick layout, the music mini player, "Only
   music" / "Move non-music to Pick", the return button, the clear pause, the desktop shortcut
   (`tools/make-shortcut.ps1`), the Drive sync between devices, own video files, and the iPhone at home.
+- **Built 2026-10-07, second chat (not yet confirmed on real hardware):** one field in Pick and in Music that adds a
+  pasted link or searches YouTube (search.list, 100 quota units each, about 100 a day; results only shown, not kept);
+  a pasted playlist link in Music brings all its songs ("Only music" applies). Tested with Node and Chromium (PC and
+  iPhone size) against a stand-in for Google, not against the real YouTube.
 - **Not testable in a cloud session:** Electron cannot be downloaded there, and YouTube and Google are blocked.
   Test with Node (`npm test`) and Playwright's Chromium (`/opt/pw-browsers`) against the real page files with a
   stand-in for `window.roehre`; for the iPhone at home, start `app/home.mjs` for real (see `tests/home.test.mjs`).
@@ -56,6 +60,10 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
 - Tim mixes English and German in chat; the README is German; PowerShell steps always start with their own
   `cd C:\Users\Tim\Documents\deine-roehre` box, one command per box.
 
+- **Mixes** (YouTube's "Mix – …", list ids starting RD): Tim asked how to play one. Claude advised against (a Mix is
+  YouTube's recommendations, and the Data API cannot read it) and offered search plus playlist links instead; Tim took
+  those. A pasted Mix link brings only its first song and says why. Tim may still ask for Mixes; it is his call.
+
 ## Things Claude declined (do not build them)
 
 - **Ad blocking.** YouTube's terms forbid it in embedded players. Ad-free only with YouTube Premium.
@@ -65,7 +73,8 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
 
 ## Open ideas, in the order Tim showed interest
 
-1. The step-by-step tutorial ("Use and feel"): paused at Step 1 (pull, start, see Today). Continue one step at a
+1. The step-by-step tutorial ("Use and feel"): Step 1 (pull, start, see Today) given again on 2026-10-07, Tim has not
+   reported back yet. Continue one step at a
    time, Tim reports what he sees.
 2. **Next episode:** after S01E01 is watched, offer S01E02 for the next day (files; `lists.mjs fileTitle` already
    cleans names).

@@ -109,6 +109,7 @@ export const api = {
     feed: answer(async (since) => g.uploads(await g.subscriptions(), String(since || ''))),
     playlists: answer(() => g.playlists()),
     playlist: answer((id) => g.playlistVideos(String(id || ''))),
+    search: answer((q, music) => g.search(String(q || ''), !!music)),
     categories: answer((ids) => g.categories(Array.isArray(ids) ? ids.map(String) : [])),
     driveLoad: answer(() => g.driveLoad()),
     driveSave: answer((state) => g.driveSave(state)),

@@ -51,7 +51,10 @@ Vier Fenster im Menü:
 - **Pick:** alles, was infrage kommt, als Kacheln: deine eingefügten Links
   (**Mine**) und, mit Google angemeldet, die neuen Videos deiner Abos
   (**Channels**, neueste zuerst, alle 3 Stunden von selbst). Links einfügen
-  ins Feld oder mit Strg+V irgendwo. Unter jeder Kachel ein Klick:
+  ins Feld oder mit Strg+V irgendwo. Andere Wörter im Feld **suchen auf
+  YouTube** (mit Google angemeldet): die Treffer stehen oben, nur angezeigt,
+  bis du einen einplanst. Keine Empfehlungen, nur was du gesucht hast; etwa
+  100 Suchen am Tag (YouTubes Grenze). Unter jeder Kachel ein Klick:
   **Today**, **Saturday** oder **Music**. Ein Klick aufs Bild zeigt es groß,
   ohne abzuspielen. Aus Pick spielt nichts.
 - **Music:** spielt jederzeit, nacheinander, in Schleife, auf Wunsch gemischt.
@@ -61,9 +64,14 @@ Vier Fenster im Menü:
   Next / Shuffle und was als Nächstes kommt. Escape oder „Bigger“ macht ihn
   groß, die Musik läuft weiter; ebenso der kleine Zurück-Knopf ‹ oben. Am
   Handy steht das Musikfeld unter dem Video.
+  Oben ein Feld: ein **Playlist-Link** (auch eine fremde Playlist) holt alle
+  Lieder der Liste, ein Lied-Link das Lied, andere Wörter **suchen Lieder**
+  („Add to Music“ unter dem Treffer). Ein **Mix** von YouTube („Mix – …“)
+  geht nicht: den stellt YouTube selbst zusammen, und Apps können ihn nicht
+  lesen; dann kommt nur sein erstes Lied.
   Mit Google angemeldet holt „Import from YouTube…“ eine deiner Playlists oder
   deine „Liked videos“ hierher. „Only music“ (an) nimmt nur, was YouTube als
-  Musik einordnet; „Move non-music to Pick“ räumt Music nachträglich auf
+  Musik einordnet (beim Import, bei Playlist-Links und bei der Suche); „Move non-music to Pick“ räumt Music nachträglich auf
   (nichts wird gelöscht).
 - **Settings:** wann Today und Samstag spielen (leer = ganzer Tag), wie viele
   Videos pro Tag (3), Google-Konto.
@@ -109,7 +117,7 @@ Listen oder Videos; **New code** in Settings meldet alle Handys ab.
 
 ## Mit Google anmelden (einmal einrichten, etwa 15 Minuten)
 
-Die App liest dein YouTube-Konto nur (Abos und Playlists) und ändert dort nichts.
+Die App liest dein YouTube-Konto nur (Abos und Playlists, dazu deine Suchen) und ändert dort nichts.
 Deine Listen legt sie in eine einzige versteckte Datei in deinem Google Drive,
 die nur Deine Röhre sieht: So haben PC, iPhone und Tablet dieselben Listen.
 Dafür braucht sie einen eigenen, kostenlosen Zugang bei Google:
