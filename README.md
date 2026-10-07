@@ -26,7 +26,10 @@ cd C:\Users\Tim\Documents\deine-roehre
 powershell -ExecutionPolicy Bypass -File .\start.ps1
 ```
 
-Beim ersten Start lädt es Electron (etwa 100 MB, nur einmal).
+Beim ersten Start lädt es Electron (etwa 100 MB, nur einmal). Läuft Deine
+Röhre noch, holt ein neuer Start nur das Fenster nach vorn; nach einem Update
+(`git pull`) startet sie sich dabei selbst neu, mit der neuen Fassung. Rote
+Zeilen wie „Unable to move the cache“ in PowerShell sind dabei harmlos.
 
 **Symbol auf dem Desktop** (einmal):
 

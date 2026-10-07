@@ -79,6 +79,10 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
   home server, a PC page with a stand-in for Electron, and a phone page (Chromium, iPhone size); not on real hardware.
   Not built: the volume (YouTube's player has one, but Tim did not ask), the remote for videos on Today (the buttons
   work for them too, but the remote shows only in Music).
+- **Why Tim did not see the new buttons:** an old Deine Röhre was still running; start.ps1 only brought it to the
+  front (its PowerShell showed Chromium's harmless "Unable to move the cache: Access is denied" lines from the second
+  instance). Fixed in main.mjs: a second start after an update (a program file newer than the running start) restarts
+  the app (`app.relaunch()`). Not testable here (no Electron in the cloud); Tim to confirm.
 - **QR code for the iPhone at home** (built 2026-10-07, second chat, Tim's idea): Settings shows a QR code of
   `http://<PC>:47832/#pair=<code>`; lan-api.mjs pairs with the code from the address and takes it out of the address.
   First runtime dependency: `qrcode-generator` (MIT, no dependencies of its own), used in main.mjs/home.mjs only

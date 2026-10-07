@@ -278,7 +278,24 @@ ipcMain.handle('h:newCode', answer(async () => {   // a new code, and every phon
 }));
 ipcMain.on('wl:youtube', (_e, id) => { if (/^[A-Za-z0-9_-]{11}$/.test(id)) shell.openExternal(watchUrl(id)); });
 
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+// A second start brings the window to the front. After an update (a file of the program newer than this start, as
+// `git pull` leaves them) it restarts with the new version instead, so an old window left open never hides an update.
+const STARTED = Date.now();
+async function updatedSinceStart() {
+  for (const dir of [HERE, path.join(HERE, 'kit')]) {
+    let names = [];
+    try { names = await fs.readdir(dir); } catch { continue; }
+    for (const name of names) {
+      if (!/\.(mjs|cjs|js|html|css)$/.test(name)) continue;
+      try { if ((await fs.stat(path.join(dir, name))).mtimeMs > STARTED) return true; } catch { /* gone: fine */ }
+    }
+  }
+  return false;
+}
+app.on('second-instance', async () => {
+  if (await updatedSinceStart()) { app.relaunch(); app.quit(); return; }
+  if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+});
 app.on('window-all-closed', () => app.quit());
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.whenReady().then(async () => {
