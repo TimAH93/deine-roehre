@@ -160,6 +160,7 @@ function planButtons(id, here = L.placeOf(state, id)) {
     here !== sa?.id ? btn('Saturday', () => go('saturday', 'Saturday')) : null,
     others.filter((d) => d.id !== here).map((d) => btn(dayLabel(d), () => go(d.id, dayLabel(d)))),
     here !== 'music' ? btn('Music', () => go('music', 'Music')) : null,
+    !L.isFile(id) && (here === 'inbox' || here === 'feed' || here === 'music') ? playlistChoice(id) : null,
     here && here !== 'inbox' && here !== 'feed' ? btn('Back to Pick', () => go('inbox', 'back in Pick'), 'wl-quiet') : null,
     removeBtn(id),
   ];
@@ -452,31 +453,63 @@ const VIEW = 'roehre:musicView';
 let musicView = (() => { try { return localStorage.getItem(VIEW) || ''; } catch { return ''; } })();
 let naming = null;   // a playlist being made ('new') or renamed (its id)
 const nameInput = h('input', { type: 'text', placeholder: 'Name, e.g. Work', 'aria-label': 'Playlist name', maxlength: '80' });
-nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(); else if (e.key === 'Escape') { e.stopPropagation(); naming = null; renderMusic(); } });
+nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(); else if (e.key === 'Escape') { e.stopPropagation(); naming = null; pendingSong = null; renderMusic(); } });
 function saveName() {
   const r = naming === 'new' ? L.newPlaylist(state, nameInput.value) : L.renamePlaylist(state, naming, nameInput.value);
   if (r.error) { say(r.error); return; }
-  if (r.playlist) { musicView = r.playlist.id; say(`"${r.playlist.name}" is ready: under every song, "Playlist…".`); }
-  naming = null; changed();
+  if (r.playlist) {
+    const song = pendingSong && state.videos[pendingSong] ? pendingSong : null;
+    if (song && (state.music.includes(song) ? !L.addToPlaylist(state, r.playlist.id, song).error : L.importToMusic(state, [{ id: song }], new Date(), r.playlist.id))) {
+      say(`"${r.playlist.name}" is ready, with ${title(song).slice(0, 40)} in it.`);
+    } else say(`"${r.playlist.name}" is ready: "Add to playlist…" under a song.`);
+    musicView = r.playlist.id;
+  }
+  naming = null; pendingSong = null; changed();
 }
 function showView(id) {
   musicView = id; naming = null;
   try { localStorage.setItem(VIEW, id); } catch { /* not remembered */ }
   renderMusic();
 }
-// Under a song: into a playlist, or out of one (it stays in Music).
+// Under a video: into a playlist (a video from Pick goes to Music with it), out of one (it stays in Music), or into a
+// new one.
 function playlistChoice(id) {
-  if (!state.playlists.length) return null;
-  const sel = h('select', { 'aria-label': 'Playlist', onchange: () => {
+  const inMusic = state.music.includes(id);
+  const sel = h('select', { 'aria-label': 'Add to playlist', onchange: () => {
     const [how, listId] = sel.value.split(':');
+    sel.value = '';
+    if (how === 'new') { pendingSong = id; naming = 'new'; nameInput.value = ''; renderMusic(); goToNaming(); return; }
     const p = state.playlists.find((x) => x.id === listId);
-    if (how === 'in') { const r = L.addToPlaylist(state, listId, id); if (r.error) { say(r.error); return; } say(`Into "${p.name}".`); }
-    else { L.removeFromPlaylist(state, listId, id); say(`Out of "${p.name}" (still in Music).`); }
-    changed();
+    if (!p) return;
+    if (how === 'out') { L.removeFromPlaylist(state, listId, id); say(`Out of "${p.name}" (still in Music).`); }
+    else if (inMusic) { const r = L.addToPlaylist(state, listId, id); if (r.error) { say(r.error); return; } say(`Into "${p.name}".`); }
+    else if (L.importToMusic(state, [{ id }], new Date(), listId)) say(`Into "${p.name}" (and Music).`);
+    else { say('Planned for a day: it can go into a playlist once it is back in Pick.'); return; }
+    hidePreview(); changed();
   } },
-  h('option', { value: '' }, 'Playlist…'),
-  state.playlists.map((p) => p.items.includes(id) ? h('option', { value: 'out:' + p.id }, `Out of ${p.name}`) : h('option', { value: 'in:' + p.id }, `Into ${p.name}`)));
+  h('option', { value: '' }, 'Add to playlist…'),
+  state.playlists.map((p) => p.items.includes(id) ? h('option', { value: 'out:' + p.id }, `Out of ${p.name}`) : h('option', { value: 'in:' + p.id }, `Into ${p.name}`)),
+  h('option', { value: 'new:' }, 'New playlist…'));
   return sel;
+}
+let pendingSong = null;   // the song "New playlist…" was chosen under: it goes into the new playlist
+function goToNaming() {
+  if (!$('w-music').hidden) { nameInput.scrollIntoView({ block: 'center' }); nameInput.focus(); return; }
+  goTo('w-music'); setTimeout(() => { nameInput.scrollIntoView({ block: 'center' }); nameInput.focus(); }, 700);
+}
+// "Play playlist" in All: which one (made once, so a re-render keeps the choice).
+const playPick = h('select', { 'aria-label': 'Playlist to play' });
+function playPlaylist(listId) {
+  const songs = L.songsOf(state, listId);
+  if (!songs.length) { say('Nothing in that playlist yet: "Add to playlist…" under a song.'); return; }
+  play(L.musicOrder(songs, shuffle)[0], 'music', listId);
+}
+
+function fillPlayPick() {
+  const keep = playPick.value;
+  fill(playPick, state.playlists.map((p) => h('option', { value: p.id }, `${p.name} (${p.items.length})`)));
+  if (state.playlists.some((p) => p.id === keep)) playPick.value = keep;
+  return playPick;
 }
 function renderMusic() {
   const view = state.playlists.find((p) => p.id === musicView) || null;
@@ -495,7 +528,7 @@ function renderMusic() {
       h('div', { class: 'ub-seg', role: 'group', 'aria-label': 'Playlists' },
         seg('', 'All', state.music.length), state.playlists.map((p) => seg(p.id, p.name, p.items.length))),
       naming ? null : btn('New playlist', () => { naming = 'new'; nameInput.value = ''; renderMusic(); nameInput.focus(); }, 'wl-quiet')),
-    naming ? h('div', { class: 'wl-paste' }, nameInput, btn(naming === 'new' ? 'Create' : 'Rename', saveName, 'wl-go'), btn('Cancel', () => { naming = null; renderMusic(); }, 'wl-quiet')) : null,
+    naming ? h('div', { class: 'wl-paste' }, nameInput, btn(naming === 'new' ? 'Create' : 'Rename', saveName, 'wl-go'), btn('Cancel', () => { naming = null; pendingSong = null; renderMusic(); }, 'wl-quiet')) : null,
     view && !naming ? h('div', { class: 'wl-row-of' },
       btn('Rename', () => { naming = view.id; nameInput.value = view.name; renderMusic(); nameInput.focus(); }, 'wl-quiet'),
       btn('Delete playlist', () => { L.deletePlaylist(state, view.id); say(`"${view.name}" is gone; its songs are still in Music (All).`); changed(); }, 'wl-quiet'),
@@ -505,12 +538,14 @@ function renderMusic() {
           : `"${view.name}" is gone, and ${n} ${n === 1 ? 'song' : 'songs'} with it${n < view.items.length ? ' (the ones also in another playlist stay)' : ''}.`);
         changed();
       }, 'wl-quiet') : null) : null,
-    songs.length ? h('div', { class: 'wl-row-of' },
-      btn(view ? `Play "${view.name}"` : 'Play all', () => play(L.musicOrder(songs, shuffle)[0], 'music'), 'wl-go'),
+    songs.length || state.playlists.length ? h('div', { class: 'wl-row-of' },
+      view ? btn('Play playlist', () => playPlaylist(view.id), 'wl-go')
+        : [songs.length ? btn('Play all', () => play(L.musicOrder(songs, shuffle)[0], 'music', ''), 'wl-go') : null,
+          state.playlists.length ? [fillPlayPick(), btn('Play playlist', () => playPlaylist(playPick.value), 'wl-go')] : null],
       btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; render(); }, '', { 'aria-pressed': String(shuffle) })) : null,
     songs.length
-      ? h('ul', { class: 'wl-cards' }, songs.map((id) => card(id, [btn('Play', () => play(id, 'music')), playlistChoice(id), planButtons(id, 'music')], playing?.id === id ? ' playing' : '')))
-      : h('p', { class: 'wl-empty' }, view ? 'Nothing in this playlist yet. Under a song in All: "Playlist…".' : 'No music yet. In Pick, one click on "Music" under a video, or search above.'));
+      ? h('ul', { class: 'wl-cards' }, songs.map((id) => card(id, [btn('Play', () => play(id, 'music')), planButtons(id, 'music')], playing?.id === id ? ' playing' : '')))
+      : h('p', { class: 'wl-empty' }, view ? 'Nothing in this playlist yet. Under a song in All: "Add to playlist…".' : 'No music yet. In Pick, one click on "Music" under a video, or search above.'));
 }
 
 // ---- Settings ----
@@ -635,8 +670,8 @@ function showPlayer() {
   UB.front(playerWin);
 }
 
-function queueFor(from, startId) {
-  if (from === 'music') return L.musicOrder(L.songsOf(state, musicView), shuffle, startId);
+function queueFor(from, startId, list = '') {
+  if (from === 'music') return L.musicOrder(L.songsOf(state, list), shuffle, startId);
   const day = dayById(from);
   return day ? day.items.slice(day.items.indexOf(startId)) : [];
 }
@@ -661,11 +696,12 @@ fileVideo.addEventListener('pause', () => { if (!fileVideo.ended) { paused = tru
 fileVideo.addEventListener('ended', () => ended());
 fileVideo.addEventListener('error', () => { if (onFile() && fileVideo.getAttribute('src')) playError('file'); });
 
-async function play(id, from) {
+// Music plays one playlist's songs (list), or what Music shows (All or the playlist chosen there).
+async function play(id, from, list = musicView) {
   if (!L.canPlay(state, id)) { say('This video is locked right now.'); return; }
   const src = L.isFile(id) ? await fileSrc(id) : null;
   if (L.isFile(id) && !src) { say('This video is on your PC: watch it there, or on the iPhone at home (Settings on the PC).'); return; }
-  playing = { id, from, list: from === 'music' ? musicView : null, queue: queueFor(from, id) };
+  playing = { id, from, list: from === 'music' ? list : null, queue: queueFor(from, id, list) };
   paused = false; hideCover();
   document.body.classList.toggle('wl-music', from === 'music');
   showPlayer();
@@ -703,7 +739,7 @@ function nextId(step = 1) {
 }
 function skip(step) {
   const id = nextId(step);
-  if (id) play(id, playing.from);
+  if (id) play(id, playing.from, playing.list);
   else if (step > 0) finished();
 }
 function ended() {   // a video or song ran to its end: watched (a day's), then the next one

@@ -65,6 +65,9 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
   fills the same one); Music shows All or one playlist and plays what it shows. Tim asked for it so the liked videos
   are one playlist he can leave out of sight. Tim's earlier flat import: importing "Liked videos" once more fills the
   new playlist with the songs already in Music.
+  Then Tim asked for "Add to playlist" under the videos and a "Play playlist" that opens the mini player: the choice
+  "Add to playlist…" is under every song and every Pick video (a Pick video goes to Music with it), with "New
+  playlist…"; "Play playlist" plays only that playlist (`playing.list`), Next and Shuffle stay inside it.
 - **Mixes** (YouTube's "Mix – …", list ids starting RD): Tim asked how to play one. Claude advised against (a Mix is
   YouTube's recommendations, and the Data API cannot read it) and offered search plus playlist links instead; Tim took
   those. A pasted Mix link brings only its first song and says why. Tim may still ask for Mixes; it is his call.

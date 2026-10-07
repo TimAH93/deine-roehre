@@ -74,9 +74,12 @@ Vier Fenster im Menü:
   **Playlists in Music:** Jede geholte YouTube-Playlist (auch „Liked videos“
   und eingefügte Links) wird eine eigene Playlist mit ihrem Namen; holst du
   sie noch einmal, kommen neue Lieder in dieselbe. „New playlist“ macht eine
-  eigene (z. B. „Work“, „Sport“); unter jedem Lied steht „Playlist…“: hinein
-  oder heraus. Oben wählst du, was du siehst und was spielt: **All** oder eine
-  Playlist („Play "Work"“). „Delete playlist“ löscht nur die Liste (die Lieder
+  eigene (z. B. „Work“, „Sport“). Unter jedem Lied (auch unter Videos in
+  Pick) steht **„Add to playlist…“**: hinein, heraus, oder „New playlist…“
+  (das Lied kommt gleich mit hinein; aus Pick geht es dabei nach Music). Oben
+  wählst du, was du siehst: **All** oder eine Playlist. **„Play playlist“**
+  spielt nur deren Lieder, am PC im Musik-Mini-Player; Next und Shuffle
+  bleiben in der Playlist. „Delete playlist“ löscht nur die Liste (die Lieder
   bleiben in All), „Delete with its songs“ nimmt auch ihre Lieder aus Music,
   außer denen, die noch in einer anderen Playlist sind. „Only music“ (an) nimmt nur, was YouTube als
   Musik einordnet (beim Import, bei Playlist-Links und bei der Suche); „Move non-music to Pick“ räumt Music nachträglich auf
