@@ -2,7 +2,8 @@
 
 Tim's own YouTube tool: lists without recommendations (README.md, German for
 Tim; code comments English). Born in `TimAH93/eisenfaust` on 2026-10-06 and
-moved here.
+moved here. **Read `docs/HANDOFF.md` first**: the state, Tim's decisions, what was declined, open
+ideas. Keep it current.
 
 - Branches `claude/<task>`, commit subjects `[Claude] ...`. Only Tim merges to `main`.
 - UI: the Archon Grid's UI philosophy (eisenfaust `docs/ARCHON_UI.md`) on the
