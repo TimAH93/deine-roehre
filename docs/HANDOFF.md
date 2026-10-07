@@ -68,6 +68,9 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
   Then Tim asked for "Add to playlist" under the videos and a "Play playlist" that opens the mini player: the choice
   "Add to playlist…" is under every song and every Pick video (a Pick video goes to Music with it), with "New
   playlist…"; "Play playlist" plays only that playlist (`playing.list`), Next and Shuffle stay inside it.
+  Tim's wish: under a song in Music only Play and the playlists, no days (`songButtons`: Play, Add to playlist…,
+  Back to Pick, Remove). Tim reported not seeing the new buttons: most likely the old window was still open (a second
+  start only brings it to the front) or `git pull` did not run through; asked him to check.
 - **Mixes** (YouTube's "Mix – …", list ids starting RD): Tim asked how to play one. Claude advised against (a Mix is
   YouTube's recommendations, and the Data API cannot read it) and offered search plus playlist links instead; Tim took
   those. A pasted Mix link brings only its first song and says why. Tim may still ask for Mixes; it is his call.

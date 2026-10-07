@@ -74,8 +74,9 @@ Vier Fenster im Menü:
   **Playlists in Music:** Jede geholte YouTube-Playlist (auch „Liked videos“
   und eingefügte Links) wird eine eigene Playlist mit ihrem Namen; holst du
   sie noch einmal, kommen neue Lieder in dieselbe. „New playlist“ macht eine
-  eigene (z. B. „Work“, „Sport“). Unter jedem Lied (auch unter Videos in
-  Pick) steht **„Add to playlist…“**: hinein, heraus, oder „New playlist…“
+  eigene (z. B. „Work“, „Sport“). Unter einem Lied in Music stehen nur
+  **Play**, **„Add to playlist…“**, Back to Pick und Remove (keine Tage: Musik
+  plant man nicht). „Add to playlist…“ steht auch unter Videos in Pick. Darin: hinein, heraus, oder „New playlist…“
   (das Lied kommt gleich mit hinein; aus Pick geht es dabei nach Music). Oben
   wählst du, was du siehst: **All** oder eine Playlist. **„Play playlist“**
   spielt nur deren Lieder, am PC im Musik-Mini-Player; Next und Shuffle

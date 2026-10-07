@@ -165,6 +165,12 @@ function planButtons(id, here = L.placeOf(state, id)) {
     removeBtn(id),
   ];
 }
+// Under a song in Music: Play and its playlists only (no days: a song is for listening, not for planning).
+const songButtons = (id) => [
+  btn('Play', () => { hidePreview(); play(id, 'music'); }, 'wl-go'), playlistChoice(id),
+  btn('Back to Pick', () => { hidePreview(); L.moveTo(state, id, 'inbox'); say(`${title(id).slice(0, 40)}${title(id).length > 40 ? '…' : ''}: back in Pick.`); changed(); }, 'wl-quiet'),
+  removeBtn(id),
+];
 const removeBtn = (id) => btn('Remove', () => { if (playing?.id === id) stopPlaying(); L.removeVideo(state, id); hidePreview(); changed(); }, 'wl-quiet');
 
 // A bigger look at a video without playing it.
@@ -177,7 +183,7 @@ function preview(id) {
     h('div', { class: 'wl-pv-text' },
       h('p', { class: 'wl-h' }, title(id)),
       h('p', { class: 'wl-sub' }, [v.channel, v.published ? ago(v.published) : null].filter(Boolean).join(' · ')),
-      h('div', { class: 'acts' }, planButtons(id), btn('Close', hidePreview, 'wl-quiet'))));
+      h('div', { class: 'acts' }, state.music.includes(id) ? songButtons(id) : planButtons(id), btn('Close', hidePreview, 'wl-quiet'))));
   previewEl.hidden = false;
   UB.front(previewEl);
 }
@@ -544,7 +550,7 @@ function renderMusic() {
           state.playlists.length ? [fillPlayPick(), btn('Play playlist', () => playPlaylist(playPick.value), 'wl-go')] : null],
       btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; render(); }, '', { 'aria-pressed': String(shuffle) })) : null,
     songs.length
-      ? h('ul', { class: 'wl-cards' }, songs.map((id) => card(id, [btn('Play', () => play(id, 'music')), planButtons(id, 'music')], playing?.id === id ? ' playing' : '')))
+      ? h('ul', { class: 'wl-cards' }, songs.map((id) => card(id, songButtons(id), playing?.id === id ? ' playing' : '')))
       : h('p', { class: 'wl-empty' }, view ? 'Nothing in this playlist yet. Under a song in All: "Add to playlist…".' : 'No music yet. In Pick, one click on "Music" under a video, or search above.'));
 }
 
