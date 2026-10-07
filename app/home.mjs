@@ -6,7 +6,8 @@
 //
 // The home server (only while Tim switches it on in Settings): the same page on the PC's own address in the Wi-Fi,
 // port 47832. Nothing but the page's own files is open; the lists and the videos need a key, which a phone gets once
-// for the 6-digit code shown on the PC (five wrong codes a minute at most).
+// for the 6-digit code shown on the PC (five wrong codes a minute at most). A paired phone is also a remote for what
+// plays on the PC (README "Fernbedienung"): it asks what plays (/api/now) and sends the buttons (/api/control).
 import { promises as fs, createReadStream } from 'node:fs';
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -75,6 +76,19 @@ export function homeAddresses() {
   return found.sort((a, b) => a.startsWith('192.168.') ? -1 : b.startsWith('192.168.') ? 1 : 0);
 }
 
+// A remote's button, checked: { action, list?, id? }, or null. play: a playlist ('' = all of Music), or one song of it;
+// add / out: the song playing into or out of a playlist.
+const ACTIONS = ['toggle', 'next', 'previous', 'shuffle', 'play', 'add', 'out'];
+export function remoteCommand(raw) {
+  const action = String(raw?.action || '');
+  if (!ACTIONS.includes(action)) return null;
+  const list = String(raw.list || ''), id = String(raw.id || '');
+  if (list && !/^p[\w-]{1,40}$/.test(list)) return null;
+  if (id && !/^[A-Za-z0-9_-]{11}$/.test(id)) return null;
+  if ((action === 'add' || action === 'out') && !list) return null;
+  return { action, ...(list ? { list } : {}), ...(id ? { id } : {}) };
+}
+
 const json = (res, status, value) => res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(value));
 async function body(req, limit = 4 * 1024 * 1024) {
   let size = 0; const parts = [];
@@ -83,7 +97,8 @@ async function body(req, limit = 4 * 1024 * 1024) {
 }
 
 // The home server. `deps`: pages { path: file }, types { ext: type }, code() the 6-digit code, keys() / addKey(key)
-// the phones' keys, load() / save(state) the lists, info(ids) titles, fileFor(id) a video's full path or null.
+// the phones' keys, load() / save(state) the lists, info(ids) titles, fileFor(id) a video's full path or null,
+// now() what plays on the PC, control(command) a remote's button (false when the PC's window is not there).
 export function startHome(deps) {
   const tries = [];
   const allowed = (req, url) => {
@@ -109,6 +124,13 @@ export function startHome(deps) {
         if (url.pathname === '/api/lists' && req.method === 'GET') { json(res, 200, await deps.load()); return; }
         if (url.pathname === '/api/lists' && req.method === 'PUT') { json(res, 200, { saved: await deps.save(await body(req)) }); return; }
         if (url.pathname === '/api/updated' && req.method === 'GET') { json(res, 200, { updated: (await deps.load())?.updated || '' }); return; }
+        if (url.pathname === '/api/now' && req.method === 'GET') { json(res, 200, deps.now ? deps.now() : { playing: false }); return; }
+        if (url.pathname === '/api/control' && req.method === 'POST') {
+          const command = remoteCommand(await body(req, 1000));
+          if (!command) { json(res, 400, { error: 'unknown button' }); return; }
+          json(res, 200, { done: !!(deps.control && await deps.control(command)) });
+          return;
+        }
         if (url.pathname === '/api/info' && req.method === 'POST') { const ids = await body(req, 100000); json(res, 200, await deps.info(Array.isArray(ids) ? ids.map(String) : [])); return; }
         if (url.pathname.startsWith('/file/') && (req.method === 'GET' || req.method === 'HEAD')) {
           const abs = await deps.fileFor(url.pathname.slice(6));
@@ -126,6 +148,6 @@ export function startHome(deps) {
   });
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(HOME_PORT, '0.0.0.0', () => resolve({ stop: () => new Promise((r) => server.close(() => r())), port: HOME_PORT }));
+    server.listen(HOME_PORT, '0.0.0.0', () => resolve({ stop: () => new Promise((r) => { server.close(() => r()); server.closeAllConnections(); }), port: HOME_PORT }));
   });
 }

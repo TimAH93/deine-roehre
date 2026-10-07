@@ -64,3 +64,31 @@ test('home server: the page is open; lists and videos need a key, got once for t
   for (let i = 0; i < 4; i++) await pair('999999');   // with the first wrong one: five in a minute
   assert.equal((await pair('123456')).status, 429);
 });
+
+test('home server as a remote: what plays and the buttons need a key; only known buttons go on to the PC', async (t) => {
+  const sent = [];
+  let keys = [], window = true;
+  const home = await H.startHome({
+    pages: {}, types: {}, code: () => '654321', keys: () => keys, addKey: async (k) => { keys.push(k); },
+    load: async () => ({}), save: async () => true, info: async () => ({}), fileFor: async () => null,
+    now: () => ({ playing: true, title: 'Song', paused: false }),
+    control: async (c) => { if (!window) return false; sent.push(c); return true; },
+  });
+  t.after(() => home.stop());
+  const base = `http://127.0.0.1:${H.HOME_PORT}`;
+  // fetch may hold a connection to the server of the test before (closed now): the first call opens a fresh one
+  const first = await fetch(base + '/api/now').catch(() => fetch(base + '/api/now'));
+  assert.equal(first.status, 401);
+  assert.equal((await fetch(base + '/api/control', { method: 'POST', body: '{"action":"next"}' })).status, 401);
+  const { key } = await (await fetch(base + '/api/pair', { method: 'POST', body: JSON.stringify({ code: '654321' }) })).json();
+  const auth = { 'x-roehre-key': key };
+  assert.equal((await (await fetch(base + '/api/now', { headers: auth })).json()).title, 'Song');
+  const press = (c) => fetch(base + '/api/control', { method: 'POST', headers: auth, body: JSON.stringify(c) });
+  assert.deepEqual(await (await press({ action: 'next' })).json(), { done: true });
+  await press({ action: 'play', list: 'pwork1', id: 'dQw4w9WgXcQ', extra: 'dropped' });
+  await press({ action: 'add', list: 'pwork1' });
+  for (const bad of [{ action: 'quit' }, { action: 'add' }, { action: 'play', list: '../x' }, { action: 'play', id: 'nope' }]) assert.equal((await press(bad)).status, 400);
+  assert.deepEqual(sent, [{ action: 'next' }, { action: 'play', list: 'pwork1', id: 'dQw4w9WgXcQ' }, { action: 'add', list: 'pwork1' }]);
+  window = false;
+  assert.deepEqual(await (await press({ action: 'toggle' })).json(), { done: false });
+});

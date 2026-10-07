@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('roehre', {
     home: (on) => ipcRenderer.invoke('h:set', on),              // share with the iPhone at home, or stop
     newCode: () => ipcRenderer.invoke('h:newCode'),
   },
+  now: (state) => ipcRenderer.send('wl:now', state),           // what plays, for the iPhone remote
+  onControl: (fn) => ipcRenderer.on('wl:control', (_e, command) => fn(command)),   // the iPhone remote's buttons
   onRemote: (fn) => ipcRenderer.on('wl:remote', (_e, state) => fn(state)),   // the iPhone changed the lists
   // Google (read only; each answers { ok, value } or { ok: false, error, signedOut }):
   google: {

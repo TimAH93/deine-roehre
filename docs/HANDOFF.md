@@ -71,7 +71,15 @@ moved here). Read with `CLAUDE.md` and `README.md`. Keep this page current: tick
   Tim's wish: under a song in Music only Play and the playlists, no days (`songButtons`: Play, Add to playlist…,
   Back to Pick, Remove). Tim reported not seeing the new buttons: most likely the old window was still open (a second
   start only brings it to the front) or `git pull` did not run through; asked him to check.
-- **Mixes** (YouTube's "Mix – …", list ids starting RD): Tim asked how to play one. Claude advised against (a Mix is
+- **The iPhone as a remote** (built 2026-10-07, second chat): Tim wants the music on the PC's sound system and the
+  iPhone as the remote. Through the home server: the PC window tells main.mjs what plays every second (`wl:now`,
+  `nowState`), the phone asks `/api/now` every 2 s and sends `/api/control` (`remoteCommand` checks: toggle, next,
+  previous, shuffle, play {list, id}, add/out {list}); main.mjs hands it to the window (`wl:control`, `onControl`).
+  On the phone: Music, "Plays on: PC | This iPhone" (default PC), pinned at the top. Tested end to end with the real
+  home server, a PC page with a stand-in for Electron, and a phone page (Chromium, iPhone size); not on real hardware.
+  Not built: the volume (YouTube's player has one, but Tim did not ask), the remote for videos on Today (the buttons
+  work for them too, but the remote shows only in Music).
+ "Mix – …", list ids starting RD): Tim asked how to play one. Claude advised against (a Mix is
   YouTube's recommendations, and the Data API cannot read it) and offered search plus playlist links instead; Tim took
   those. A pasted Mix link brings only its first song and says why. Tim may still ask for Mixes; it is his call.
 

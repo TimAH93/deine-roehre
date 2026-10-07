@@ -123,7 +123,15 @@ auf dem iPhone.
    einmal eingeben. Dann **Teilen, Zum Home-Bildschirm**.
 
 Das iPhone zeigt dann die Listen des PCs, mit deinen eigenen Videos, und jede
-Änderung geht in ein paar Sekunden hin und her. Es geht nur, solange der PC an
+Änderung geht in ein paar Sekunden hin und her.
+
+**Fernbedienung:** Auf dem iPhone steht in **Music** oben „Plays on: **PC** |
+This iPhone“. Bei **PC** spielt die Musik am PC (über deine Anlage), und das
+iPhone ist die Fernbedienung: was gerade läuft, **Prev / Pause / Next /
+Shuffle**, „Add to playlist…“ für das laufende Lied und was als Nächstes kommt.
+„Play“, „Play all“ und „Play playlist“ starten es am PC (dort im
+Musik-Mini-Player). Die Fernbedienung bleibt oben stehen, während du durch die
+Lieder scrollst. Bei **This iPhone** spielt das iPhone selbst, wie vorher. Es geht nur, solange der PC an
 ist und Deine Röhre läuft. Ohne den Code kommt niemand in deinem WLAN an deine
 Listen oder Videos; **New code** in Settings meldet alle Handys ab.
 

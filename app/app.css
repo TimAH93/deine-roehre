@@ -209,3 +209,14 @@ body.wl-mini.wl-music .wl-cover p { font-size: 12px; }
 /* Music's playlists: as many as Tim makes, so the row wraps (on the iPhone too) */
 #music .ub-seg { flex-wrap: wrap; max-width: 100%; }
 .wl-card .acts select { max-width: 100%; min-width: 0; }
+/* The iPhone at home as the PC's remote (Music, at the top): big buttons for a thumb */
+.wl-remote { margin: 0 0 16px; }
+.wl-rnow { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid rgba(255, 110, 60, 0.35); border-radius: 2px; background: rgba(255, 74, 28, 0.05); }
+.wl-rnow .mp-title { font-size: 15px; }
+.wl-rnow .mp-btns { gap: 6px; flex-wrap: nowrap; }
+.wl-rnow .mp-btns button { padding: 9px 4px; font-size: 15px; flex: 1 1 0; min-width: 0; white-space: nowrap; }
+.wl-rline { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.wl-rline select { flex: 0 1 auto; max-width: 55%; }
+.wl-rline .mp-next { flex: 1; min-width: 0; }
+.wl-remote { position: sticky; top: 0; z-index: 2; background: #070505; padding: 4px 0 8px; }
+.wl-remote > .wl-row-of { margin-bottom: 6px; }

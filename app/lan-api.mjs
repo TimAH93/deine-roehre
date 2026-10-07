@@ -56,6 +56,11 @@ export const api = {
       } catch { /* the PC is off: try again */ }
     }, 4000);
   },
+  // The PC's player from here (README "Fernbedienung"): what plays there, and its buttons.
+  remote: {
+    now: () => call('/api/now'),
+    control: (command) => call('/api/control', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(command) }),
+  },
   fileUrl: (id) => `/file/${id}?k=${encodeURIComponent(store.get(KEY) || '')}`,
   onTop: () => {}, mini: () => {}, onKey: () => {}, watching: () => {},
   fullscreen: () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => {}); },

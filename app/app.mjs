@@ -167,7 +167,7 @@ function planButtons(id, here = L.placeOf(state, id)) {
 }
 // Under a song in Music: Play and its playlists only (no days: a song is for listening, not for planning).
 const songButtons = (id) => [
-  btn('Play', () => { hidePreview(); play(id, 'music'); }, 'wl-go'), playlistChoice(id),
+  btn('Play', () => { hidePreview(); playSong(id); }, 'wl-go'), playlistChoice(id),
   btn('Back to Pick', () => { hidePreview(); L.moveTo(state, id, 'inbox'); say(`${title(id).slice(0, 40)}${title(id).length > 40 ? '…' : ''}: back in Pick.`); changed(); }, 'wl-quiet'),
   removeBtn(id),
 ];
@@ -507,8 +507,71 @@ function goToNaming() {
 const playPick = h('select', { 'aria-label': 'Playlist to play' });
 function playPlaylist(listId) {
   const songs = L.songsOf(state, listId);
-  if (!songs.length) { say('Nothing in that playlist yet: "Add to playlist…" under a song.'); return; }
+  if (!songs.length) { say(listId ? 'Nothing in that playlist yet: "Add to playlist…" under a song.' : 'No music yet.'); return; }
+  if (onPC) { send({ action: 'play', list: listId }); return; }
   play(L.musicOrder(songs, shuffle)[0], 'music', listId);
+}
+function playSong(id) {
+  if (onPC) send({ action: 'play', id, list: L.songsOf(state, musicView).includes(id) ? musicView : '' });
+  else play(id, 'music');
+}
+
+// ---- the iPhone at home as a remote for the PC's player (README "Fernbedienung") ----
+// The PC tells its home server what plays (reportNow); the iPhone looks every 2 seconds and sends its buttons, which
+// the PC carries out as if they were pressed there (onControl). Music from Music then plays on the PC's speakers.
+const remote = api.remote || null;   // only on the iPhone at home
+const ON_PC = 'roehre:onPC';
+let onPC = !!remote && (() => { try { return localStorage.getItem(ON_PC) !== '0'; } catch { return true; } })();
+let pcNow = null, pcShown = '';      // what plays on the PC; what the remote shows of it (drawn again only on a change)
+const remoteBox = h('div', { class: 'wl-remote' });
+async function send(command) {
+  try { const r = await remote.control(command); if (!r.done) say('Deine Röhre is not open on the PC.'); }
+  catch { say('The PC does not answer: is it on, with Deine Röhre open?'); }
+  setTimeout(lookAtPc, 300);
+}
+async function lookAtPc() {
+  if (!remote || !onPC || document.visibilityState !== 'visible') return;
+  try { pcNow = await remote.now(); } catch { pcNow = { off: true }; }
+  renderRemote();
+}
+if (remote) setInterval(lookAtPc, 2000);
+const clockText = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+function renderRemote() {
+  if (!remote) return;
+  const n = pcNow || {};
+  const { at, length: _l, ...rest } = n;
+  const key = JSON.stringify([onPC, rest, state.playlists.map((p) => [p.id, p.name, p.items.includes(n.id)])]);
+  const time = remoteBox.querySelector('.wl-rtime');
+  if (key === pcShown) { if (time) time.textContent = n.length ? `${clockText(n.at || 0)} / ${clockText(n.length)}` : ''; return; }
+  pcShown = key;
+  const where = (pc) => { onPC = pc; try { localStorage.setItem(ON_PC, pc ? '1' : '0'); } catch { /* not remembered */ } pcShown = ''; renderRemote(); lookAtPc(); };
+  let choice = null;
+  if (n.playing && n.music && state.playlists.length) {
+    choice = h('select', { 'aria-label': 'Add the song playing to a playlist', onchange: () => {
+      const [action, list] = choice.value.split(':');
+      if (action) send({ action, list });
+    } },
+    h('option', { value: '' }, 'Add to playlist…'),
+    state.playlists.map((p) => p.items.includes(n.id) ? h('option', { value: 'out:' + p.id }, `Out of ${p.name}`) : h('option', { value: 'add:' + p.id }, `Into ${p.name}`)));
+  }
+  fill(remoteBox,
+    h('div', { class: 'wl-row-of' },
+      h('span', { class: 'wl-sub', style: 'margin:0' }, 'Plays on'),
+      h('div', { class: 'ub-seg', role: 'group', 'aria-label': 'Plays on' },
+        h('button', { type: 'button', 'aria-pressed': String(onPC), onclick: () => where(true) }, 'PC'),
+        h('button', { type: 'button', 'aria-pressed': String(!onPC), onclick: () => where(false) }, 'This iPhone'))),
+    !onPC ? null
+      : n.off ? h('p', { class: 'wl-note' }, 'The PC does not answer: is it on, with Deine Röhre open?')
+      : !n.playing ? h('p', { class: 'wl-note' }, 'Nothing plays on the PC. Play a song or a playlist below: it plays there.')
+      : h('div', { class: 'wl-rnow' },
+          h('div', { class: 'mp-title', title: n.title }, n.title),
+          h('div', { class: 'mp-artist' }, [n.channel, n.listName].filter(Boolean).join(' · '), ' ', h('span', { class: 'wl-rtime' }, n.length ? `${clockText(n.at || 0)} / ${clockText(n.length)}` : '')),
+          h('div', { class: 'mp-btns' },
+            btn('Prev', () => send({ action: 'previous' })),
+            btn(n.paused ? 'Play' : 'Pause', () => send({ action: 'toggle' }), 'wl-go'),
+            btn('Next', () => send({ action: 'next' })),
+            n.music ? btn('Shuffle', () => send({ action: 'shuffle' }), n.shuffle ? 'wl-go' : '', { 'aria-pressed': String(!!n.shuffle), title: n.shuffle ? 'Shuffle is on' : 'Shuffle is off' }) : null),
+          choice || n.next ? h('div', { class: 'wl-rline' }, choice, n.next ? h('div', { class: 'mp-next', title: n.next }, 'Next: ' + n.next) : null) : null));
 }
 
 function fillPlayPick() {
@@ -522,8 +585,10 @@ function renderMusic() {
   if (!view) musicView = '';
   const songs = L.songsOf(state, musicView);
   const seg = (id, label, n) => h('button', { type: 'button', 'aria-pressed': String(musicView === id), onclick: () => showView(id) }, `${label} ${n}`);
+  if (remote) renderRemote();
   fill($('music'),
-    h('p', { class: 'wl-sub' }, 'Plays any time, one after another, in a loop. "Mini" keeps a small player in the corner of the screen.'),
+    remote ? remoteBox : null,
+    h('p', { class: 'wl-sub' }, remote && onPC ? 'Your PC plays, this iPhone is the remote: Play below starts it on the PC.' : 'Plays any time, one after another, in a loop. "Mini" keeps a small player in the corner of the screen.'),
     found('music'),
     google.signedIn ? h('div', { class: 'wl-row-of' },
       btn(onlyMusic ? 'Only music: on' : 'Only music: off', () => { onlyMusic = !onlyMusic; renderMusic(); }, '', { 'aria-pressed': String(onlyMusic), title: 'Searches, playlists and imports bring only what YouTube files as music' }),
@@ -546,7 +611,7 @@ function renderMusic() {
       }, 'wl-quiet') : null) : null,
     songs.length || state.playlists.length ? h('div', { class: 'wl-row-of' },
       view ? btn('Play playlist', () => playPlaylist(view.id), 'wl-go')
-        : [songs.length ? btn('Play all', () => play(L.musicOrder(songs, shuffle)[0], 'music', ''), 'wl-go') : null,
+        : [songs.length ? btn('Play all', () => playPlaylist(''), 'wl-go') : null,
           state.playlists.length ? [fillPlayPick(), btn('Play playlist', () => playPlaylist(playPick.value), 'wl-go')] : null],
       btn(shuffle ? 'Shuffle on' : 'Shuffle off', () => { shuffle = !shuffle; render(); }, '', { 'aria-pressed': String(shuffle) })) : null,
     songs.length
@@ -595,7 +660,7 @@ function renderSettings() {
       homeState?.home ? [
         h('p', { class: 'wl-note' }, homeState.addresses.length
           ? ['On your iPhone, in Safari: ', h('strong', {}, homeState.addresses[0]), ' then the code ', h('strong', { class: 'wl-code' }, homeState.code),
-             '. Then Share, "Add to Home Screen". ', homeState.phones ? `${homeState.phones} paired.` : '']
+             '. Then Share, "Add to Home Screen". It is also the remote for music on this PC (Music, at the top). ', homeState.phones ? `${homeState.phones} paired.` : '']
           : 'This PC is not in a home network right now.'),
         h('div', { class: 'wl-row-of' }, btn('New code (every phone pairs again)', async () => { const r = await api.files.newCode(); if (r.ok) { homeState = r.value; renderSettings(); } }, 'wl-quiet')),
       ] : null,
@@ -792,6 +857,42 @@ function showCover(...kids) {
 }
 function hideCover() { cover.hidden = true; cover.classList.remove('clear'); }
 cover.addEventListener('click', () => { if (paused) playNow(); });
+function toggleShuffle() {
+  shuffle = !shuffle;
+  if (playing?.from === 'music') playing.queue = L.musicOrder(L.songsOf(state, playing.list), shuffle, playing.id);
+  render();
+}
+// What plays, for the iPhone remote (main.mjs keeps it for the home server): told on every change and every second.
+function nowState() {
+  if (!playing) return { playing: false };
+  const music = playing.from === 'music', next = nextId(1), v = state.videos[playing.id];
+  const list = music && playing.list ? state.playlists.find((p) => p.id === playing.list) : null;
+  return {
+    playing: true, music, id: playing.id, title: title(playing.id), channel: v?.channel || '', paused, shuffle,
+    list: list?.id || '', listName: music ? list?.name || 'All' : dayLabel(dayById(playing.from) || { date: L.dayKey() }),
+    next: next && next !== playing.id ? title(next) : '', at: Math.round(nowAt()), length: Math.round(length()),
+  };
+}
+const reportNow = () => api.now?.(nowState());
+if (api.now) setInterval(reportNow, 1000);
+// The remote's buttons, as if pressed here. Play with nothing playing plays all of Music.
+api.onControl?.((c) => {
+  const p = state.playlists.find((x) => x.id === c.list);
+  if (c.action === 'toggle') { if (playing) toggle(); else playPlaylist(''); }
+  else if (c.action === 'next') skip(1);
+  else if (c.action === 'previous') skip(-1);
+  else if (c.action === 'shuffle') toggleShuffle();
+  else if (c.action === 'play') {
+    if (c.list && !p) return;
+    if (c.id && L.songsOf(state, c.list || '').includes(c.id)) play(c.id, 'music', c.list || '');
+    else playPlaylist(c.list || '');
+  } else if ((c.action === 'add' || c.action === 'out') && p && playing?.from === 'music') {
+    if (c.action === 'add') { if (L.addToPlaylist(state, p.id, playing.id).error) return; say(`From the iPhone: into "${p.name}".`); }
+    else { L.removeFromPlaylist(state, p.id, playing.id); say(`From the iPhone: out of "${p.name}".`); }
+    changed();
+  }
+  reportNow();
+});
 function toggle() {
   if (!playing) return;
   if (isRunning()) pauseNow(); else playNow();
@@ -859,7 +960,7 @@ function renderMusicPanel() {
     h('div', { class: 'mp-time' }, seek, clock),
     h('div', { class: 'mp-btns' },
       btn('Prev', () => skip(-1)), btn(paused ? 'Play' : 'Pause', toggle, 'wl-go'), btn('Next', () => skip(1)),
-      btn(shuffle ? 'Shuffle on' : 'Shuffle', () => { shuffle = !shuffle; playing.queue = L.musicOrder(L.songsOf(state, playing.list), shuffle, playing.id); render(); }, '', { 'aria-pressed': String(shuffle) }),
+      btn(shuffle ? 'Shuffle on' : 'Shuffle', toggleShuffle, '', { 'aria-pressed': String(shuffle) }),
       api.desktop && mini ? btn('Bigger', () => setMini(false), 'wl-quiet') : null),
     next && next !== playing.id ? h('div', { class: 'mp-next', title: title(next) }, 'Next: ' + title(next)) : null);
 }
@@ -872,6 +973,7 @@ setInterval(() => {   // the bar and the clock follow the song
 
 function renderBar() {
   renderMusicPanel();
+  reportNow();
   if (!playing) { fill(bar); return; }
   const isMusic = playing.from === 'music';
   const from = isMusic ? 'Music' : dayLabel(dayById(playing.from) || { date: L.dayKey() });

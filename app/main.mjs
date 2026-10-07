@@ -71,7 +71,8 @@ async function writeJson(file, value) {   // written whole to a side file first,
 
 // ---- Tim's own videos and the home server (home.mjs); their settings in pc.json, on this PC only ----
 const pcFile = () => path.join(app.getPath('userData'), 'pc.json');
-let pc = null, files = new Map(), home = null;   // files: id -> full path, from the last look at the folder
+let pc = null, files = new Map(), home = null;
+let nowPlaying = { playing: false };   // what plays, as the window last told (for the iPhone remote)   // files: id -> full path, from the last look at the folder
 const LOCAL_KEY = crypto.randomBytes(24).toString('base64url');   // this run's key for the page's own videos
 async function pcSettings() {
   if (pc) return pc;
@@ -111,6 +112,9 @@ async function setHome(on) {
       },
       info: (ids) => videoInfo(ids.filter((id) => /^[A-Za-z0-9_-]{11}$/.test(id))),
       fileFor,
+      // the iPhone as a remote: what the window last told us plays, and its buttons on to the window
+      now: () => nowPlaying,
+      control: (command) => { if (!win) return false; win.webContents.send('wl:control', command); return true; },
     });
   } else if (!on && home) { await home.stop(); home = null; }
   p.home = !!on; await savePc();
@@ -230,6 +234,7 @@ ipcMain.handle('wl:info', (_e, ids) => videoInfo((Array.isArray(ids) ? ids : [])
 ipcMain.on('wl:onTop', (_e, on) => { onTop = !!on; if (win && !mini) win.setAlwaysOnTop(onTop, 'floating'); });
 ipcMain.on('wl:mini', (_e, on, kind) => setMini(!!on, String(kind || 'video')));
 ipcMain.on('wl:watching', (_e, on) => { watching = !!on; });
+ipcMain.on('wl:now', (_e, now) => { nowPlaying = now && typeof now === 'object' ? now : { playing: false }; });
 ipcMain.on('wl:fullscreen', () => { if (win) win.setFullScreen(!win.isFullScreen()); });
 // Google (google.mjs): every call answers { ok, value } or { ok: false, error, signedOut }, so the page can say why.
 const answer = (fn) => async (_e, ...args) => {
